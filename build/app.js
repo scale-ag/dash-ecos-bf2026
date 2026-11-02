@@ -6,6 +6,8 @@ const MAIN_PRODUCT = B.main_product || 'Produto principal';
 const MAIN_PREFIX = B.main_product_prefix || '';
 const ALL_MAIN = !!B.all_products_main;      /* e-commerce: todo pedido = venda */
 const HAS_ATC = !!B.has_atc;                /* etapa Carrinho (Adds to Cart) disponível */
+const CLIENT = !!B.client_mode;             /* página /cliente/: só Visão Geral + criativos */
+if(CLIENT) document.body.classList.add('client-mode');
 
 /* ---------------- format ---------------- */
 const nf0=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0});
@@ -106,7 +108,7 @@ function renderTable(cfg){
       return dir==='asc'?va-vb:vb-va; }); }
   const ext={};
   cfg.cols.forEach(c=>{ if(c.heat){ const vs=rows.map(r=>r.cells[c.key]).filter(v=>v!=null&&isFinite(v)); ext[c.key]=[Math.min(...vs),Math.max(...vs)]; }});
-  const fmt=(t,v)=> t==='brl'?brl(v):t==='pct'?pct(v):t==='int'?intf(v):t==='num'?numf(v):t==='roas'?roasf(v):t==='date'?brdate(v):dimf(v);
+  const fmt=(t,v)=> t==='link'?(v?`<a class="cr-link" href="${esc(v)}" target="_blank" rel="noopener">Abrir ▸</a>`:'—'):t==='brl'?brl(v):t==='pct'?pct(v):t==='int'?intf(v):t==='num'?numf(v):t==='roas'?roasf(v):t==='date'?brdate(v):dimf(v);
   const widths=cfg.cols.map(c=>colWidth(cfg,c)); const totalW=widths.reduce((a,b)=>a+b,0);
   const colgroup='<colgroup>'+cfg.cols.map((c,i)=>`<col style="width:${widths[i]}px">`).join('')+'</colgroup>';
   let thead='<thead><tr>'+cfg.cols.map((c,i)=>{
@@ -373,6 +375,29 @@ function convCharts(id1,id2,id3,dd){
      {label:'Tx Conversão',fn:x=>x.pv?+(x.vendasM/x.pv).toFixed(4):null,color:cvar('--chart-convlp'),fmt:'pct',axis:'L'}], {L:{fmt:'pct'}});
 }
 
+/* ---------------- tabela de criativos (página do cliente) ----------------
+   Agrega por Ad Name (o mesmo criativo em campanhas diferentes soma junto).
+   Hook = 3s/Impressões (só linhas com vídeo) · Hold = ThruPlays/3s · Ret75 = p75/3s. */
+function renderCreatives(id, fS, fM){
+  const m={}; const g=k=>m[k]||(m[k]={sp:0,im:0,cl:0,imv:0,v3:0,thru:0,p75:0,vendas:0,fat:0});
+  fM.forEach(r=>{ const a=g(r.ad); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl;
+    if(r.v3){ a.imv+=r.im; a.v3+=r.v3; a.thru+=(r.thru||0); a.p75+=(r.p75||0); } });
+  fS.forEach(r=>{ if(!r.ad) return; const a=g(r.ad); a.vendas+=r.main; a.fat+=r.val; });
+  const cells=(name,a)=>{ const gs=a.sp*taxf();
+    return {ad:name, link:(DATA.ad_links||{})[name]||'', gasto:gs, cpm:a.im?gs/a.im*1000:null, ctr:a.im?a.cl/a.im:null,
+      hook:a.imv?a.v3/a.imv:null, hold:a.v3?a.thru/a.v3:null, ret75:a.v3?a.p75/a.v3:null,
+      vendas:a.vendas, roas:gs?a.fat/gs:null}; };
+  const rows=Object.entries(m).filter(([n,a])=>a.sp>0||a.vendas>0).sort((x,y)=>y[1].sp-x[1].sp)
+    .map(([n,a])=>({k:n, cells:cells(n,a)}));
+  const T={sp:0,im:0,cl:0,imv:0,v3:0,thru:0,p75:0,vendas:0,fat:0};
+  Object.values(m).forEach(a=>Object.keys(T).forEach(k=>T[k]+=a[k]));
+  const tot=cells(null,T); tot.link='';
+  renderTable({id, cols:[{key:'ad',label:'Criativo',type:'dim',big:true},{key:'link',label:'Ver',type:'link',w:70},
+    {key:'gasto',label:'Gasto',type:'brl',heat:'gasto',w:110},{key:'cpm',label:'CPM',type:'brl'},{key:'ctr',label:'CTR',type:'pct'},
+    {key:'hook',label:'Hook Rate',type:'pct',w:96},{key:'hold',label:'Hold Rate',type:'pct',w:96},{key:'ret75',label:'Retenção 75%',type:'pct',w:110},
+    {key:'vendas',label:'Vendas',type:'int'},{key:'roas',label:'ROAS',type:'roas',heat:'roas'}], rows, total:tot});
+}
+
 /* ---------------- PAGE 1: Visão Geral ---------------- */
 function renderGeral(){
   const fM=metaActive(), fS=salesActive();          // fS = todas as vendas do funil
@@ -384,6 +409,8 @@ function renderGeral(){
   convCharts('gCpmCtr','gCrVis','gConv', dd);
   comboChart('gCombo', dd);
   renderProdTable('gProd', fS);
+
+  if(CLIENT) renderCreatives('gCreat', fS.filter(s=>s.meta), fM);
 
   const dl=dd.slice().reverse();
   renderTable({id:'gDaily', cols:DAILY_COLS,
@@ -814,7 +841,7 @@ function ppApply(){
 }
 
 /* ---------------- navigation & boot ---------------- */
-function setPage(p){ STATE.page=p;
+function setPage(p){ if(CLIENT) p='geral'; STATE.page=p;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
   document.getElementById('page-geral').classList.toggle('active',p==='geral');
   document.getElementById('page-meta').classList.toggle('active',p==='meta');

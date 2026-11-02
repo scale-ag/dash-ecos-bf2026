@@ -68,6 +68,10 @@ SALES_COLUMNS = {}
 # OPCIONAL — ignora linhas (Meta e vendas) anteriores a esta data (YYYY-MM-DD).
 DATE_MIN = ""
 
+# OPCIONAL — gera também <saída>/<CLIENT_PAGE_DIR>/index.html: versão enxuta para
+# o cliente (Visão Geral + tabela de criativos), sem os demais dados. "" = não gera.
+CLIENT_PAGE_DIR = ""
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================

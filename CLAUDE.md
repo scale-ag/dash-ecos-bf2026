@@ -94,9 +94,11 @@ cliente são **duas planilhas** (`SPREADSHEET_ID` e `SPREADSHEET_ID_SALES`).
 **Colunas reais — Meta Ads** (o `header_index` do `build.py` casa por nome, a
 ordem não importa):
 Day · Campaign Name · Ad Set Name · Ad Name · Impressions · Link Clicks ·
-Landing Page Views · Adds to Cart · Checkouts Initiated · Amount Spent
-(`Amount Spent` com vírgula decimal; células vazias = 0. Sem coluna de permalink
-do criativo → a coluna "Link" dos Top/Piores anúncios fica "—".)
+Landing Page Views · Adds to Cart · Checkouts Initiated · Amount Spent ·
+3-Second Video Views · ThruPlays · Video Watches at 25% / 50% / 75% / 95% / 100% ·
+Video Average Watch Time · Creative Instagram Permalink
+(`Amount Spent` com vírgula decimal; células vazias = 0. Vídeo é opcional: anúncios
+de imagem/catálogo vêm sem essas colunas → "—" na tabela de criativos.)
 
 **Colunas reais — Compradores** (as usadas pelo build: data, nome, e-mail,
 produto, valor/faturamento, utm_campaign, utm_medium, coluna de `AD_UTM_COLUMN`,
@@ -192,6 +194,17 @@ O match com o Meta (campo `meta`, usado pela aba Meta Ads) exige `utm_campaign` 
 a coluna de `AD_UTM_COLUMN` batendo com uma linha real do Meta; quando casa, a venda
 herda a campanha/conjunto reais do Meta (para o gasto e a venda caírem na mesma linha
 das tabelas).
+## Link do cliente (`/cliente/`)
+
+`CLIENT_PAGE_DIR = "cliente"` em `build/config.py` faz o `build.py` gerar também
+`dist/cliente/index.html` → **https://scale-ag.github.io/dash-ecos-bf2026/cliente/**
+(sem senha; link para enviar ao cliente). Mostra só a Visão Geral (funil, evolução
+diária, tabela por dia) + a tabela **Criativos** (por Ad Name): Gasto · CPM · CTR ·
+**Hook Rate** (3s / Impressões) · **Hold Rate** (ThruPlays / 3s) · **Retenção 75%**
+(Video Watches at 75% / 3s) · Vendas · ROAS + link do criativo. O HTML do cliente
+leva **só** esses dados (`client_data()` no `build.py`): sem campanha/conjunto,
+produtos, briefings nem Worker da IA.
+
 ## IA Insights
 
 Aba de análise por IA (Claude) do funil e das estruturas ativas — ver `SETUP-IA.md`

@@ -77,6 +77,10 @@ SALES_COLUMNS = {
 # o histórico desde 2024; o funil Black Friday 2026 começa em 01/11/2026.
 DATE_MIN = "2026-11-01"
 
+# Link do cliente: <URL do Pages>/cliente/ — só Visão Geral + tabela de criativos
+# (Gasto, CPM, CTR, Hook Rate, Hold Rate, Retenção 75%, Vendas, ROAS), sem senha.
+CLIENT_PAGE_DIR = "cliente"
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================

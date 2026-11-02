@@ -100,6 +100,9 @@ ALL_PRODUCTS_MAIN = MAIN_PRODUCT_PREFIX.strip() == "*"
 SALES_COLUMNS = getattr(cfg, "SALES_COLUMNS", {}) or {}
 # Descarta linhas (Meta e vendas) anteriores a esta data (YYYY-MM-DD). Vazio = tudo.
 DATE_MIN = (getattr(cfg, "DATE_MIN", "") or "").strip()
+# Página enxuta para o CLIENTE (Visão Geral + tabela de criativos), publicada em
+# <saída>/<CLIENT_PAGE_DIR>/index.html. Vazio = não gera.
+CLIENT_PAGE_DIR = (getattr(cfg, "CLIENT_PAGE_DIR", "") or "").strip().strip("/")
 
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
 META_CSV_URL = EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_META)
@@ -254,6 +257,11 @@ def process(meta_rows, sales_rows):
          "clicks": ["link clicks", "clicks", "cliques"],
          "pv": ["landing page views", "page views", "pageview", "landing"],
          "atc": ["adds to cart", "add to cart", "adicoes ao carrinho", "carrinho"],
+         # Métricas de vídeo (criativos): Hook = 3s/Impressões · Hold = ThruPlays/3s ·
+         # Retenção 75% = plays a 75%/3s. Opcionais (ausentes -> 0).
+         "v3": ["3-second video views", "3-second video plays", "video plays 3s", "3-second"],
+         "thru": ["thruplays", "thruplay"],
+         "p75": ["video watches at 75%", "video plays at 75%", "video p75"],
          "ck": ["checkouts initiated", "checkouts", "initiate checkout", "checkout"],
          # Link do criativo no Instagram (coluna acrescentada pelo cliente na aba
          # Meta Ads). Usada na aba Relatórios (Top/Piores anúncios) para linkar o
@@ -301,6 +309,9 @@ def process(meta_rows, sales_rows):
             "pv": to_float(cell(row, midx["pv"])),
             "atc": to_float(cell(row, midx["atc"])) if midx["atc"] is not None else 0.0,
             "ck": to_float(cell(row, midx["ck"])),
+            "v3": to_float(cell(row, midx["v3"])) if midx["v3"] is not None else 0.0,
+            "thru": to_float(cell(row, midx["thru"])) if midx["thru"] is not None else 0.0,
+            "p75": to_float(cell(row, midx["p75"])) if midx["p75"] is not None else 0.0,
         })
 
     # ---------------- Aba COMPRADORES ----------------
@@ -406,6 +417,8 @@ def process(meta_rows, sales_rows):
             "main_product_prefix": MAIN_PRODUCT_PREFIX,
             "all_products_main": ALL_PRODUCTS_MAIN,
             "has_atc": midx["atc"] is not None,
+            "has_video": midx["v3"] is not None,
+            "client_mode": False,
             "ia_worker_url": IA_WORKER_URL,
             # Metas da aba Relatórios (código de cor de CAC/ROAS)
             "cac_target": CAC_TARGET,
@@ -440,6 +453,22 @@ def load_briefings(path: str) -> dict:
         return obj if isinstance(obj, dict) else {}
     except (ValueError, OSError):
         return {}
+
+
+# --------------------------------------------------------------------------- #
+# Página do cliente — só os dados que a Visão Geral + criativos usam
+# --------------------------------------------------------------------------- #
+def client_data(data: dict) -> dict:
+    """Cópia enxuta para o link do cliente: sem campanha/conjunto, sem produtos,
+    sem nome/e-mail, sem briefings nem Worker da IA. O que não está no HTML não
+    pode ser visto nem pelo código-fonte da página."""
+    b = dict(data["build"], client_mode=True, ia_worker_url="")
+    meta = [{k: v for k, v in m.items() if k not in ("camp", "adset")} for m in data["meta"]]
+    sales = [{"d": s["d"], "ad": s["ad"] if s["meta"] else "", "val": s["val"],
+              "main": s["main"], "meta": s["meta"]} for s in data["sales"]]
+    used_ads = {m["ad"] for m in meta}
+    links = {k: v for k, v in data.get("ad_links", {}).items() if k in used_ads}
+    return {"build": b, "meta": meta, "sales": sales, "ad_links": links, "briefings": {}}
 
 
 # --------------------------------------------------------------------------- #
@@ -487,6 +516,12 @@ def main():
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(render(data, args.template))
+    if CLIENT_PAGE_DIR:
+        cout = os.path.join(os.path.dirname(args.out) or ".", CLIENT_PAGE_DIR, "index.html")
+        os.makedirs(os.path.dirname(cout), exist_ok=True)
+        with open(cout, "w", encoding="utf-8") as f:
+            f.write(render(client_data(data), args.template))
+        print(f"  cliente : {cout}", file=sys.stderr)
 
     b = data["build"]
     vendas = sum(s["main"] for s in data["sales"])

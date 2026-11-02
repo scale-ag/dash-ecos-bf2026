@@ -23,9 +23,9 @@
     <div class="logo"><div class="logo-main" id="logoMain"></div><div class="logo-sub" id="logoSub"></div></div>
     <div class="sec">Dashboards</div>
     <div class="nav-item active" data-page="geral"><span class="ic">◱</span> Visão Geral</div>
-    <div class="nav-item" data-page="meta"><span class="ic">◨</span> Meta Ads</div>
-    <div class="nav-item" data-page="rel"><span class="ic">▤</span> Relatórios</div>
-    <div class="nav-item" data-page="ia"><span class="ic">✦</span> IA Insights</div>
+    <div class="nav-item full-only" data-page="meta"><span class="ic">◨</span> Meta Ads</div>
+    <div class="nav-item full-only" data-page="rel"><span class="ic">▤</span> Relatórios</div>
+    <div class="nav-item full-only" data-page="ia"><span class="ic">✦</span> IA Insights</div>
     <div class="foot">Somente leitura · atualiza ~30 min<br><span id="buildFoot"></span></div>
   </aside>
 
@@ -81,8 +81,16 @@
           </div>
         </div>
 
-        <h2 class="sec-title">Indicadores por dia</h2>
-        <div class="funnel-charts">
+        <div class="client-only">
+          <h2 class="sec-title">Criativos</h2>
+          <div class="card" style="padding:0">
+            <div class="tbl-wrap" style="max-height:640px"><table class="dt" id="gCreat"></table></div>
+            <p class="note" style="padding:10px 15px 12px"><b>Hook Rate</b> = visualizações de 3s / impressões · <b>Hold Rate</b> = ThruPlays / visualizações de 3s · <b>Retenção 75%</b> = visualizações a 75% do vídeo / visualizações de 3s (“—” = criativo sem vídeo). <b>Vendas</b> e <b>ROAS</b> = pedidos pagos da loja atribuídos ao anúncio pela UTM. Clique no cabeçalho para ordenar.</p>
+          </div>
+        </div>
+
+        <h2 class="sec-title full-only">Indicadores por dia</h2>
+        <div class="funnel-charts full-only">
           <div class="card"><h3>CPM e CTR por dia</h3><p class="hint">CPM (R$, esq.) · CTR (%, dir.)</p><div class="chart-box chart-sm"><canvas id="gCpmCtr"></canvas></div></div>
           <div class="card"><h3>Taxas da página ao checkout</h3><p class="hint">Connect Rate = Views LP/Cliques · Tx Carrinho = Carrinhos/Views LP · Tx Checkout = Checkouts/Carrinhos</p><div class="chart-box chart-sm"><canvas id="gCrVis"></canvas></div></div>
           <div class="card"><h3>Tx Compra e Tx Conversão por dia</h3><p class="hint">Tx Compra = Vendas/Checkouts · Tx Conversão = Vendas/Views LP (Meta)</p><div class="chart-box chart-sm"><canvas id="gConv"></canvas></div></div>
