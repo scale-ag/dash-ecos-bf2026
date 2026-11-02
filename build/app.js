@@ -437,6 +437,38 @@ function renderWhen(fS,fM){
   renderProdTableEcom('gProdAll', fS);
 }
 
+/* ---------------- Clientes novos × recorrentes ----------------
+   s.nr: 1 = recorrente (compra paga anterior, no histórico até HIST_ATE ou antes no
+   período) · 0 = novo · null = sem identificação do cliente. */
+const HAS_NR = !!B.has_customer_hist;
+function renderNovosRecorrentes(fS){
+  const sec=document.getElementById('nrSection'); if(!sec) return;
+  sec.style.display = HAS_NR ? '' : 'none'; if(!HAS_NR) return;
+  const T={n:{q:0,f:0},r:{q:0,f:0},x:{q:0,f:0}}, days={};
+  fS.forEach(s=>{ const g=s.nr===1?'r':(s.nr===0?'n':'x'); T[g].q+=s.main; T[g].f+=s.val;
+    if(!s.d) return; const dd=days[s.d]||(days[s.d]={n:0,r:0,x:0}); dd[g]+=s.main; });
+  const tot=T.n.q+T.r.q, totF=T.n.f+T.r.f;
+  const step=(lbl,o,color)=>[lbl, intf(o.q), [['% dos pedidos',pct(tot?o.q/tot:null)],['Faturamento',brl(o.f)],['Ticket',brl(o.q?o.f/o.q:null)]], 'nr', color, ''];
+  renderFunnel('nrCards', [step('Clientes novos',T.n,'--c1'), step('Recorrentes',T.r,'--c3'),
+    ['Total', intf(tot), [['% recorrentes',pct(tot?T.r.q/tot:null)],['Faturamento',brl(totF)]], 'fat', '--heat-fat', '']]);
+  const H=DATA.customer_hist||{};
+  document.getElementById('nrNote').innerHTML =
+    `<b>Novo</b> = 1ª compra paga na loja · <b>Recorrente</b> = já tinha compra paga antes (histórico${H.de?' de '+brdate(H.de):''}${H.ate?' até '+brdate(H.ate):''} ou mais cedo no período). Todas as origens.`+
+    (T.x.q?` ${intf(T.x.q)} pedido(s) sem identificação do cliente ficaram de fora.`:'');
+  const ks=Object.keys(days).sort(), mut=cmuted();
+  destroy('gNr'); const el=document.getElementById('gNr'); if(!el) return;
+  charts['gNr']=new Chart(el,{data:{labels:ks.map(d=>d.slice(5)),datasets:[
+      {type:'bar',label:'Novos',data:ks.map(d=>days[d].n),backgroundColor:cvar('--c1'),stack:'s',yAxisID:'y',borderRadius:2,order:2},
+      {type:'bar',label:'Recorrentes',data:ks.map(d=>days[d].r),backgroundColor:cvar('--c3'),stack:'s',yAxisID:'y',borderRadius:2,order:2},
+      {type:'line',label:'% recorrentes',data:ks.map(d=>{const t=days[d].n+days[d].r;return t?+(days[d].r/t).toFixed(4):null;}),borderColor:cink(),backgroundColor:cink(),yAxisID:'y1',borderWidth:2,pointRadius:2,tension:.25,order:0}]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:cink(),boxWidth:10,usePointStyle:true,font:{size:11}}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.dataset.yAxisID==='y1'?pct(c.raw):intf(c.raw))}}},
+      scales:{x:{stacked:true,ticks:{color:mut,font:{size:10}},grid:{display:false}},
+        y:{stacked:true,beginAtZero:true,ticks:{color:mut,font:{size:10}},grid:{color:cgrid()},title:{display:true,text:'Pedidos',color:mut,font:{size:10}}},
+        y1:{position:'right',min:0,max:1,ticks:{color:mut,font:{size:10},callback:v=>pct(v)},grid:{display:false}}}}});
+}
+
 /* ---------------- PAGE 1: Visão Geral ---------------- */
 function renderGeral(){
   const fM=metaActive(), fS=salesActive();          // fS = todas as vendas do funil
@@ -450,6 +482,7 @@ function renderGeral(){
   renderProdTable('gProd', fS);
 
   if(CLIENT) renderCreatives('gCreat', fS.filter(s=>s.meta), fM);
+  renderNovosRecorrentes(fS);
   renderWhen(fS, fM);
 
   const dl=dd.slice().reverse();

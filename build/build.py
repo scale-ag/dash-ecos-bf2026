@@ -106,6 +106,31 @@ CLIENT_PAGE_DIR = (getattr(cfg, "CLIENT_PAGE_DIR", "") or "").strip().strip("/")
 # OPCIONAL — aba do Meta com gasto por HORA (detalhamento "Hour of day" no
 # Adveronix: Day · Hour · Amount Spent). Habilita o ROAS por hora. Vazio = sem.
 GID_META_HOURLY = (getattr(cfg, "GID_META_HOURLY", "") or "").strip()
+# OPCIONAL — base CIFRADA de clientes anteriores (build/gerar_clientes_hist.py),
+# decifrada com o Secret CLIENTES_KEY. Marca cada venda como novo/recorrente.
+CUSTOMER_HIST_FILE = (getattr(cfg, "CUSTOMER_HIST_FILE", "") or "").strip()
+
+
+def load_customer_hist():
+    """Conjunto de chaves de clientes que já compraram antes do funil, ou None se a
+    base não estiver configurada / sem chave (o gráfico Novos × Recorrentes some)."""
+    if not CUSTOMER_HIST_FILE:
+        return None, None
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), CUSTOMER_HIST_FILE)
+    if not os.path.exists(path):
+        print(f"AVISO: base de clientes {CUSTOMER_HIST_FILE} não encontrada.", file=sys.stderr)
+        return None, None
+    if not os.environ.get("CLIENTES_KEY"):
+        print("AVISO: CLIENTES_KEY não definida — novos × recorrentes desligado neste build.", file=sys.stderr)
+        return None, None
+    import gerar_clientes_hist as gch
+    try:
+        with open(path, "rb") as f:
+            obj = json.loads(gch.decrypt(f.read()))
+    except Exception as e:  # chave errada / arquivo corrompido: nunca derruba o build
+        print(f"AVISO: não consegui decifrar a base de clientes ({type(e).__name__}).", file=sys.stderr)
+        return None, None
+    return set(obj.get("chaves", [])), {k: obj.get(k) for k in ("de", "ate", "clientes")}
 
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
 META_CSV_URL = EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_META)
@@ -344,7 +369,8 @@ def process(meta_rows, sales_rows):
          "utm_term": ["utm term", "utm_term"],
          "utm_campaign": ["utm campaign", "utm_campaign"],
          "utm_medium": ["utm medium", "utm_medium"],
-         "status": ["status"]}
+         "status": ["status"],
+         "customer": ["cliente_id", "customer id", "id do cliente"]}
     sfallback = {"created": 3, "name": 1, "email": 2, "prod": 0, "val": 6}
     # Overrides do cliente (build/config.py -> SALES_COLUMNS): lista de nomes
     # de coluna; lista vazia = coluna inexistente (sem fallback posicional).
@@ -364,6 +390,32 @@ def process(meta_rows, sales_rows):
     for k, v in SALES_COLUMNS.items():
         if not v:
             sidx[k] = None
+
+    # Novos × recorrentes: recorrente = cliente com compra paga ANTES desta venda —
+    # na base histórica cifrada OU mais cedo nesta própria aba (qualquer data).
+    hist_keys, hist_info = load_customer_hist()
+    prev_paid = {}
+    if hist_keys is not None and sidx.get("customer") is not None:
+        import gerar_clientes_hist as gch
+        for row in sales_rows[1:]:
+            cid = cell(row, sidx["customer"])
+            if not cid or (not COUNT_ALL_AS_PAID and not is_paid(cell(row, sidx["status"]))):
+                continue
+            prev_paid.setdefault(cid, []).append((parse_date(cell(row, sidx["created"])) or "",
+                                                  cell(row, sidx["hour"]).zfill(5)))
+    else:
+        hist_keys = None
+
+    def novo_ou_recorrente(row, sday):
+        if hist_keys is None:
+            return None
+        cid = cell(row, sidx["customer"])
+        if not cid:
+            return None
+        if gch.chave(cid) in hist_keys:
+            return 1
+        cur = (sday or "", cell(row, sidx["hour"]).zfill(5))
+        return 1 if any(k < cur for k in prev_paid.get(cid, [])) else 0
 
     sales = []
     for row in sales_rows[1:]:
@@ -406,6 +458,8 @@ def process(meta_rows, sales_rows):
             "camp": camp, "adset": adset, "ad": ad,
             "prod": prod or "—",
             "h": parse_hour(cell(row, sidx["hour"])),
+            # 1 = recorrente · 0 = novo · None = sem base/sem cliente_id
+            "nr": novo_ou_recorrente(row, sday),
             "val": round(to_float(cell(row, sidx["val"])), 2),
             "main": 1 if main else 0,
             # meta=1 quando a venda casa com campanha+anúncio real do Meta (tráfego
@@ -434,6 +488,7 @@ def process(meta_rows, sales_rows):
             "all_products_main": ALL_PRODUCTS_MAIN,
             "has_atc": midx["atc"] is not None,
             "has_video": midx["v3"] is not None,
+            "has_customer_hist": hist_keys is not None,
             "client_mode": False,
             "ia_worker_url": IA_WORKER_URL,
             # Metas da aba Relatórios (código de cor de CAC/ROAS)
@@ -444,6 +499,7 @@ def process(meta_rows, sales_rows):
         },
         "meta": meta,
         "sales": sales,
+        "customer_hist": hist_info,
         "ad_links": ad_links,
         # Briefings do Gestor por período (gerados por IA 1x/dia via Routine e
         # salvos em build/relatorios.json). Preenchido em process()/main via
@@ -507,11 +563,12 @@ def client_data(data: dict) -> dict:
     pode ser visto nem pelo código-fonte da página."""
     b = dict(data["build"], client_mode=True, ia_worker_url="")
     meta = [{k: v for k, v in m.items() if k not in ("camp", "adset")} for m in data["meta"]]
-    sales = [{"d": s["d"], "h": s.get("h"), "prod": s["prod"], "ad": s["ad"] if s["meta"] else "",
+    sales = [{"d": s["d"], "h": s.get("h"), "nr": s.get("nr"), "prod": s["prod"], "ad": s["ad"] if s["meta"] else "",
               "val": s["val"], "main": s["main"], "meta": s["meta"]} for s in data["sales"]]
     used_ads = {m["ad"] for m in meta}
     links = {k: v for k, v in data.get("ad_links", {}).items() if k in used_ads}
     return {"build": b, "meta": meta, "sales": sales, "meta_h": data.get("meta_h", []),
+            "customer_hist": data.get("customer_hist"),
             "ad_links": links, "briefings": {}}
 
 

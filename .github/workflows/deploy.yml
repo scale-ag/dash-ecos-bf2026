@@ -42,6 +42,10 @@ jobs:
           python-version: "3.12"
 
       - name: Build dashboard (le as planilhas via CSV publico, somente leitura)
+        env:
+          # Chave da base cifrada de clientes (novos x recorrentes). Opcional:
+          # sem o Secret, o build segue normal e o grafico fica desligado.
+          CLIENTES_KEY: ${{ secrets.CLIENTES_KEY }}
         run: python build/build.py --out dist/index.html
 
       - name: Add .nojekyll

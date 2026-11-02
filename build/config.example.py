@@ -76,6 +76,10 @@ CLIENT_PAGE_DIR = ""
 # (detalhamento "Hour of day": Day · Hour · Amount Spent). Liga o ROAS por hora.
 GID_META_HOURLY = ""
 
+# OPCIONAL — base cifrada de clientes anteriores (build/gerar_clientes_hist.py),
+# decifrada com o Secret CLIENTES_KEY. Liga o gráfico Clientes novos × recorrentes.
+CUSTOMER_HIST_FILE = ""
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================

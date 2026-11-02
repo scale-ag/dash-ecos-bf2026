@@ -205,6 +205,22 @@ diária, tabela por dia) + a tabela **Criativos** (por Ad Name): Gasto · CPM ·
 leva **só** esses dados (`client_data()` no `build.py`): sem campanha/conjunto,
 produtos, briefings nem Worker da IA.
 
+## Clientes novos × recorrentes (Visão Geral — interna e `/cliente/`)
+
+- **Novo** = 1ª compra paga na loja · **Recorrente** = já tinha compra paga antes —
+  no histórico Nuvemshop (07/05/2024 → 31/10/2026, 9.831 clientes) **ou** mais cedo
+  na própria aba vendas. Cards (qtd, % dos pedidos, faturamento, ticket) + barras
+  empilhadas por dia com a linha % recorrentes.
+- Cliente identificado pela coluna `cliente_id` da aba vendas
+  (= `sha256(email minúsculo)[:16]`, verificado em 234/234 pedidos em comum).
+- **Base histórica CIFRADA** em `build/clientes_hist.enc` (o repo é público): gerada
+  localmente por `build/gerar_clientes_hist.py` a partir do export de Vendas da
+  Nuvemshop (com a coluna E-mail — **nunca commitar esse CSV**). Conteúdo decifrado =
+  só códigos `sha256(SALT + cliente_id)[:12]`, sem e-mail/nome/CPF. A chave fica no
+  **Secret `CLIENTES_KEY`** do repositório; o `deploy.yml` a passa ao build. Sem o
+  Secret o build segue normal e a seção fica escondida.
+- Atualizar a base (ex.: novo export): `CLIENTES_KEY=<chave> python build/gerar_clientes_hist.py --csv Vendas.csv --ate AAAA-MM-DD` e commitar só o `.enc`.
+
 ## Quando e o que vende (Visão Geral — interna e `/cliente/`)
 
 Seção abaixo do funil, seguindo o filtro de período (dados a partir de 01/11/2026):

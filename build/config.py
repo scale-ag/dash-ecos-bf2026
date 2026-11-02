@@ -86,6 +86,11 @@ CLIENT_PAGE_DIR = "cliente"
 # a aba existir para ligar o ROAS por hora. Vazio = só vendas/faturamento por hora.
 GID_META_HOURLY = ""
 
+# Base CIFRADA de clientes que compraram até 31/10/2026 (export Nuvemshop,
+# gerada por build/gerar_clientes_hist.py). Decifrada no Actions com o Secret
+# CLIENTES_KEY -> gráfico Clientes novos × recorrentes. Sem a chave, o gráfico some.
+CUSTOMER_HIST_FILE = "clientes_hist.enc"
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================
