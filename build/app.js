@@ -4,6 +4,8 @@ const META = DATA.meta, SALES = DATA.sales, B = DATA.build;
 const TAX = B.tax_factor || 1;
 const MAIN_PRODUCT = B.main_product || 'Produto principal';
 const MAIN_PREFIX = B.main_product_prefix || '';
+const ALL_MAIN = !!B.all_products_main;      /* e-commerce: todo pedido = venda */
+const HAS_ATC = !!B.has_atc;                /* etapa Carrinho (Adds to Cart) disponível */
 
 /* ---------------- format ---------------- */
 const nf0=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0});
@@ -17,7 +19,7 @@ const roasf=v=>(v==null||!isFinite(v))?'-':nf1.format(v)+'x';
 const dimf=v=>v==null?'-':String(v);
 /* remove acentos p/ casar com o norm() do build.py (unicodedata NFKD) */
 const norm=s=>(s==null?'':String(s)).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
-const isMainProd=p=>norm(p).startsWith(MAIN_PREFIX);
+const isMainProd=p=>ALL_MAIN||norm(p).startsWith(MAIN_PREFIX);
 const brdate=d=>{ if(!d) return '-'; const p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; };
 const WD=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const weekday=d=>{ const dt=new Date(d+'T00:00:00'); return isNaN(dt)?'':WD[dt.getDay()]; };
@@ -48,38 +50,40 @@ const metaActive  = ()=> META.filter(m=>dateActive(m.d));
 const salesActive = ()=> SALES.filter(s=>dateActive(s.d));
 
 /* ---------------- aggregation ----------------
-   bucket = {sp,im,cl,pv,ck, vendas, vendasM, fat}
+   bucket = {sp,im,cl,pv,atc,ck, vendas, vendasM, fat}   (atc = Adds to Cart)
    vendas  = compras do produto principal (base de exibição da página)
    vendasM = compras do produto principal atribuídas ao Meta Ads (base das conversões)
    fat     = faturamento (todos os produtos do escopo)
    Obs.: na aba Meta o conjunto de vendas já é filtrado a meta==1, então vendas==vendasM. */
-function newBucket(){return {sp:0,im:0,cl:0,pv:0,ck:0,vendas:0,vendasM:0,fat:0};}
+function newBucket(){return {sp:0,im:0,cl:0,pv:0,atc:0,ck:0,vendas:0,vendasM:0,fat:0};}
 function addSales(a,r){ a.vendas+=r.main; a.vendasM+=(r.main&&r.meta)?1:0; a.fat+=r.val; }
 function derive(a){
   const g=a.sp*taxf();
-  return {gasto:g, impr:a.im, cliques:a.cl, pv:a.pv, ck:a.ck, vendas:a.vendas, fat:a.fat,
+  return {gasto:g, impr:a.im, cliques:a.cl, pv:a.pv, atc:a.atc, ck:a.ck, vendas:a.vendas, fat:a.fat,
     cpm:a.im?g/a.im*1000:null, ctr:a.im?a.cl/a.im:null, cpc:a.cl?g/a.cl:null,
     cpv:a.pv?g/a.pv:null, cr:a.cl?a.pv/a.cl:null,               /* CR = Page Views / Cliques */
+    cpatc:a.atc?g/a.atc:null, txatc:a.pv?a.atc/a.pv:null,       /* Custo/Carrinho · Tx Carrinho = Carrinhos / Page Views */
     cpic:a.ck?g/a.ck:null, vischk:a.pv?a.ck/a.pv:null,
+    txck:a.atc?a.ck/a.atc:null,                                 /* Tx Checkout = Checkouts / Carrinhos */
     convlp:a.pv?a.vendasM/a.pv:null,                            /* Vendas(Meta) / Page Views */
     convchk:a.ck?a.vendasM/a.ck:null,                           /* Vendas(Meta) / Checkouts */
     cac:a.vendas?g/a.vendas:null, roas:g?a.fat/g:null, ticket:a.vendas?a.fat/a.vendas:null};
 }
 function buildAgg(fS,fM,dim){
   const m={}; const get=k=>m[k]||(m[k]=newBucket());
-  fM.forEach(r=>{const a=get(r[dim]); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl; a.pv+=r.pv; a.ck+=r.ck;});
+  fM.forEach(r=>{const a=get(r[dim]); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl; a.pv+=r.pv; a.ck+=r.ck; a.atc+=(r.atc||0);});
   fS.forEach(r=>{const a=get(r[dim]); addSales(a,r);});
   return m;
 }
 function totals(fS,fM){
   const a=newBucket();
-  fM.forEach(r=>{a.sp+=r.sp;a.im+=r.im;a.cl+=r.cl;a.pv+=r.pv;a.ck+=r.ck;});
+  fM.forEach(r=>{a.sp+=r.sp;a.im+=r.im;a.cl+=r.cl;a.pv+=r.pv;a.ck+=r.ck; a.atc+=(r.atc||0);});
   fS.forEach(r=>addSales(a,r));
   return a;
 }
 function daily(fS,fM){
   const days={}; const g=d=>days[d]||(days[d]=Object.assign({d},newBucket()));
-  fM.forEach(r=>{if(!r.d)return; const a=g(r.d); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl; a.pv+=r.pv; a.ck+=r.ck;});
+  fM.forEach(r=>{if(!r.d)return; const a=g(r.d); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl; a.pv+=r.pv; a.ck+=r.ck; a.atc+=(r.atc||0);});
   fS.forEach(r=>{if(!r.d)return; addSales(g(r.d),r);});
   return Object.values(days).sort((a,b)=>a.d<b.d?-1:1);
 }
@@ -253,31 +257,55 @@ function cacDimChart(id, fM, fS, dim){
 function kpiCard(k){ return `<div class="kpi ${k.hero?'hero':''}"><div class="kl"><span>${k.label}</span>${k.pill?`<span class="pill q">${k.pill}</span>`:''}</div><div class="kv">${k.val}</div><div class="ka">${k.aux||''}</div></div>`; }
 
 /* ---------------- colunas das tabelas ---------------- */
+/* Funil etapa a etapa: custo de cada etapa + taxa de conversão da etapa.
+   Sem coluna Adds to Cart no Meta (HAS_ATC=false) as colunas de carrinho somem
+   e a Tx Checkout volta a ser Checkouts/Page Views (VisCHK). */
 const METRIC_COLS=[
   {key:'gasto',label:'Gasto',type:'brl',heat:'gasto'},   /* heatmap vermelho */
   {key:'cpm',label:'CPM',type:'brl'},
   {key:'ctr',label:'CTR',type:'pct'},
-  {key:'cr',label:'CR',type:'pct'},
-  {key:'vischk',label:'VisCHK',type:'pct'},
-  {key:'convchk',label:'ConvCHK',type:'pct'},
+  {key:'pv',label:'Views LP',type:'int'},
+  {key:'cpv',label:'Custo/View',type:'brl'},
+  {key:'cr',label:'Connect Rate',type:'pct',w:100},
+  {key:'atc',label:'Carrinhos',type:'int',atc:1},
+  {key:'cpatc',label:'Custo/Carrinho',type:'brl',w:110,atc:1},
+  {key:'txatc',label:'Tx Carrinho',type:'pct',atc:1},
+  {key:'ck',label:'Checkouts',type:'int'},
+  {key:'cpic',label:'Custo/Checkout',type:'brl',w:110},
+  {key:'txck',label:'Tx Checkout',type:'pct'},
   {key:'vendas',label:'Vendas',type:'int'},
-  {key:'cac',label:'CAC',type:'brl'},
-  {key:'fat',label:'Faturamento',type:'brl',heat:'fat'},  /* heatmap verde */
+  {key:'cac',label:'Custo/Compra',type:'brl',w:110},
+  {key:'convchk',label:'Tx Compra',type:'pct'},
+  {key:'convlp',label:'Tx Conversão',type:'pct',w:100},
+  {key:'fat',label:'Faturamento',type:'brl',heat:'fat',w:110},  /* heatmap verde */
   {key:'ticket',label:'Ticket',type:'brl'},
   {key:'roas',label:'ROAS',type:'roas',heat:'roas'},      /* heatmap amarelo */
-];
+].filter(c=>HAS_ATC||!c.atc);
 const DAILY_COLS=[{key:'date',label:'Data',type:'date'},{key:'wd',label:'Dia',type:'dim',w:64}].concat(METRIC_COLS);
 const HCOLS=[{key:'dim',label:'',type:'dim',big:true}].concat(METRIC_COLS.map(c=>{const o={...c}; delete o.heat; return o;}));
 function metricCells(x,d){
-  return {gasto:d.gasto, cpm:d.cpm, ctr:d.ctr, cr:d.cr, vischk:d.vischk, convchk:d.convchk,
-    vendas:x.vendas, cac:d.cac, fat:x.fat, ticket:d.ticket, roas:d.roas};
+  return {gasto:d.gasto, cpm:d.cpm, ctr:d.ctr, pv:x.pv, cpv:d.cpv, cr:d.cr,
+    atc:x.atc, cpatc:d.cpatc, txatc:d.txatc, ck:x.ck, cpic:d.cpic, txck:HAS_ATC?d.txck:d.vischk,
+    vendas:x.vendas, cac:d.cac, convchk:d.convchk, convlp:d.convlp,
+    fat:x.fat, ticket:d.ticket, roas:d.roas};
 }
 function dailyCells(x,d,isTotal){
   return Object.assign({date:isTotal?null:x.d, wd:isTotal?'':weekday(x.d)}, metricCells(x,d));
 }
 
 /* ---------------- tabela Vendas por produto ---------------- */
+/* e-commerce (ALL_MAIN): a coluna de produtos traz "1x Produto A | 2x Produto B";
+   conta em quantos pedidos cada produto aparece e o % sobre o total de pedidos. */
+function renderProdTableEcom(id, salesSet){
+  const n=salesSet.length, byProd={};
+  salesSet.forEach(r=>{ const seen=new Set();
+    String(r.prod||'').split('|').map(x=>x.trim().replace(/^\d+\s*x\s+/i,'')).filter(Boolean)
+      .forEach(p=>{ if(seen.has(p)) return; seen.add(p); byProd[p]=(byProd[p]||0)+1; }); });
+  const rows=Object.entries(byProd).sort((a,b)=>b[1]-a[1]).map(([prod,c])=>({k:prod, cells:{prod, vendas:c, pctm:n?c/n:null}}));
+  renderTable({id, cols:[{key:'prod',label:'Produto',type:'dim',big:true},{key:'vendas',label:'Pedidos',type:'int',w:80},{key:'pctm',label:'% dos pedidos',type:'pct',w:120}], rows});
+}
 function renderProdTable(id, salesSet){
+  if(ALL_MAIN) return renderProdTableEcom(id, salesSet);
   const mainCount=salesSet.reduce((s,r)=>s+r.main,0);
   const byProd={}; salesSet.forEach(r=>{ if(isMainProd(r.prod)) return; byProd[r.prod]=(byProd[r.prod]||0)+1; });
   const rows=[{k:'__main__', cells:{prod:MAIN_PRODUCT, vendas:mainCount, pctm:1}}];
@@ -297,7 +325,7 @@ function prevWindow(){
 }
 const inRange=(d,a,b)=>d&&d>=a&&d<=b;
 /* métricas em que MENOR é melhor (custo); nas demais, maior é melhor */
-const GOOD_LOW={gasto:1,cpm:1,cpc:1,cpv:1,cpic:1,cac:1};
+const GOOD_LOW={gasto:1,cpm:1,cpc:1,cpv:1,cpatc:1,cpic:1,cac:1};
 function deltaBadge(cur,prev,key){
   if(cur==null||prev==null||!isFinite(cur)||!isFinite(prev)||prev===0) return '';
   const p=((cur-prev)/Math.abs(prev))*100; if(!isFinite(p)) return '';
@@ -325,19 +353,24 @@ function funnelSteps(t, tp){
     ['Gasto Total', brl(d.gasto), [], 'gasto', '--heat-gasto', deltaBadge(d.gasto, Pd?Pd.gasto:null, 'gasto')],
     ['Impressões', intf(t.im), [['CPM',brl(d.cpm)]], 'impr', '--c6', deltaBadge(t.im, P('im'), 'im')],
     ['Cliques', intf(t.cl), [['CPC',brl(d.cpc)],['CTR',pct(d.ctr)]], 'cl', '--c1', deltaBadge(t.cl, P('cl'), 'cl')],
-    ['Page Views', intf(t.pv), [['CPV',brl(d.cpv)],['CR',pct(d.cr)]], 'pv', '--c4', deltaBadge(t.pv, P('pv'), 'pv')],
-    ['Checkouts', intf(t.ck), [['CPIC',brl(d.cpic)],['VisCHK',pct(d.vischk)]], 'ck', '--c3', deltaBadge(t.ck, P('ck'), 'ck')],
-    ['Vendas', intf(t.vendas), [['CAC',brl(d.cac),'cac'],['ConvCHK',pct(d.convchk)]], 'vendas', '--c7', deltaBadge(t.vendas, P('vendas'), 'vendas')],
+    ['Views da Página', intf(t.pv), [['Custo/View',brl(d.cpv)],['Connect Rate',pct(d.cr)]], 'pv', '--c4', deltaBadge(t.pv, P('pv'), 'pv')],
+  ].concat(HAS_ATC?[
+    ['Adições ao Carrinho', intf(t.atc), [['Custo/Carrinho',brl(d.cpatc)],['Tx Carrinho',pct(d.txatc)]], 'atc', '--c8', deltaBadge(t.atc, P('atc'), 'atc')],
+  ]:[]).concat([
+    ['Checkouts', intf(t.ck), [['Custo/Checkout',brl(d.cpic)],['Tx Checkout',pct(HAS_ATC?d.txck:d.vischk)]], 'ck', '--c3', deltaBadge(t.ck, P('ck'), 'ck')],
+    ['Vendas', intf(t.vendas), [['Custo/Compra',brl(d.cac),'cac'],['Tx Compra',pct(d.convchk)],['Tx Conversão',pct(d.convlp)]], 'vendas', '--c7', deltaBadge(t.vendas, P('vendas'), 'vendas')],
     ['Faturamento', brl(t.fat), [['ROAS',roasf(d.roas),'roas'],['Ticket Médio',brl(d.ticket)]], 'fat', '--heat-fat', deltaBadge(t.fat, P('fat'), 'fat')],
-  ];
+  ]);
 }
 function convCharts(id1,id2,id3,dd){
   multiLine(id1, dd, [{label:'CPM',fn:x=>x.im?+((x.sp*taxf())/x.im*1000).toFixed(2):null,color:cvar('--chart-cpm'),fmt:'brl',axis:'L'},
      {label:'CTR',fn:x=>x.im?+(x.cl/x.im).toFixed(4):null,color:cvar('--chart-ctr'),fmt:'pct',axis:'R'}], {L:{fmt:'brl'},R:{fmt:'pct'}});
-  multiLine(id2, dd, [{label:'CR',fn:x=>x.cl?+(x.pv/x.cl).toFixed(4):null,color:cvar('--chart-cr'),fmt:'pct',axis:'L'},
-     {label:'VisCHK',fn:x=>x.pv?+(x.ck/x.pv).toFixed(4):null,color:cvar('--chart-vischk'),fmt:'pct',axis:'L'}], {L:{fmt:'pct'}});
-  multiLine(id3, dd, [{label:'ConvLP',fn:x=>x.pv?+(x.vendasM/x.pv).toFixed(4):null,color:cvar('--chart-convlp'),fmt:'pct',axis:'L'},
-     {label:'ConvCHK',fn:x=>x.ck?+(x.vendasM/x.ck).toFixed(4):null,color:cvar('--chart-vischk'),fmt:'pct',axis:'L'}], {L:{fmt:'pct'}});
+  multiLine(id2, dd, [{label:'Connect Rate',fn:x=>x.cl?+(x.pv/x.cl).toFixed(4):null,color:cvar('--chart-cr'),fmt:'pct',axis:'L'}].concat(HAS_ATC?[
+     {label:'Tx Carrinho',fn:x=>x.pv?+(x.atc/x.pv).toFixed(4):null,color:cvar('--chart-convlp'),fmt:'pct',axis:'L'},
+     {label:'Tx Checkout',fn:x=>x.atc?+(x.ck/x.atc).toFixed(4):null,color:cvar('--chart-vischk'),fmt:'pct',axis:'L'}]:[
+     {label:'Tx Checkout',fn:x=>x.pv?+(x.ck/x.pv).toFixed(4):null,color:cvar('--chart-vischk'),fmt:'pct',axis:'L'}]), {L:{fmt:'pct'}});
+  multiLine(id3, dd, [{label:'Tx Compra',fn:x=>x.ck?+(x.vendasM/x.ck).toFixed(4):null,color:cvar('--chart-vischk'),fmt:'pct',axis:'L'},
+     {label:'Tx Conversão',fn:x=>x.pv?+(x.vendasM/x.pv).toFixed(4):null,color:cvar('--chart-convlp'),fmt:'pct',axis:'L'}], {L:{fmt:'pct'}});
 }
 
 /* ---------------- PAGE 1: Visão Geral ---------------- */
@@ -451,7 +484,7 @@ function relCards(id,t){ const d=derive(t);
     relCard('Valor Gasto',brl(d.gasto)),
     relCard('Vendas',intf(t.vendas)),
     relCard('Faturamento',brl(t.fat)),
-    relCard('CAC',`<span class="${relColor(d.cac,'cac')}">${brl(d.cac)}</span>`),
+    relCard('CAC (Custo/Compra)',`<span class="${relColor(d.cac,'cac')}">${brl(d.cac)}</span>`),
     relCard('Ticket Médio',brl(d.ticket)),
     relCard('ROAS',`<span class="${relColor(d.roas,'roas')}">${roasf(d.roas)}</span>`,true),
   ].join('');
@@ -515,12 +548,16 @@ function renderRelatorios(){
   const crows=Object.entries(aggC).sort((a,b)=>b[1].sp-a[1].sp).map(([name,ag])=>{ const d=derive(ag);
     return [{v:esc(name),cls:'dim'},{v:brl(d.gasto)},{v:intf(ag.vendas)},
       {v:roasf(d.roas),cls:relColor(d.roas,'roas')},{v:brl(d.cac),cls:relColor(d.cac,'cac')},
-      {v:brl(d.cpm)},{v:pct(d.ctr)},{v:pct(d.cr)},{v:pct(d.vischk)},{v:pct(d.convchk)}]; });
+      {v:brl(d.cpm)},{v:pct(d.ctr)},{v:brl(d.cpv)},{v:pct(d.cr)}].concat(HAS_ATC?[{v:brl(d.cpatc)},{v:pct(d.txatc)}]:[]).concat(
+      [{v:brl(d.cpic)},{v:pct(HAS_ATC?d.txck:d.vischk)},{v:pct(d.convchk)},{v:pct(d.convlp)}]); });
   relRenderTable('relCamp',
-    [{label:'Campanha',cls:'dim'},{label:'Gasto'},{label:'Venda'},{label:'ROAS'},{label:'CAC'},{label:'CPM'},{label:'CTR'},{label:'CR'},{label:'VisCHK'},{label:'ConvCHK'}],
+    [{label:'Campanha',cls:'dim'},{label:'Gasto'},{label:'Venda'},{label:'ROAS'},{label:'Custo/Compra'},{label:'CPM'},{label:'CTR'},{label:'Custo/View'},{label:'Connect Rate'}]
+      .concat(HAS_ATC?[{label:'Custo/Carrinho'},{label:'Tx Carrinho'}]:[])
+      .concat([{label:'Custo/Checkout'},{label:'Tx Checkout'},{label:'Tx Compra'},{label:'Tx Conversão'}]),
     crows,
     [{v:'Total',cls:'dim'},{v:brl(dvA.gasto)},{v:intf(tAds.vendas)},{v:roasf(dvA.roas),cls:relColor(dvA.roas,'roas')},{v:brl(dvA.cac),cls:relColor(dvA.cac,'cac')},
-     {v:brl(dvA.cpm)},{v:pct(dvA.ctr)},{v:pct(dvA.cr)},{v:pct(dvA.vischk)},{v:pct(dvA.convchk)}]);
+     {v:brl(dvA.cpm)},{v:pct(dvA.ctr)},{v:brl(dvA.cpv)},{v:pct(dvA.cr)}].concat(HAS_ATC?[{v:brl(dvA.cpatc)},{v:pct(dvA.txatc)}]:[]).concat(
+     [{v:brl(dvA.cpic)},{v:pct(HAS_ATC?dvA.txck:dvA.vischk)},{v:pct(dvA.convchk)},{v:pct(dvA.convlp)}]));
 
   /* top / piores anúncios (só Meta Ads, com gasto no período) */
   const aggAd=buildAgg(fSads,fM,'ad');
@@ -546,7 +583,7 @@ const r4=v=>(v==null||!isFinite(v))?null:Math.round(v*10000)/10000;
 const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 function iaMetricRow(x,d){
   return {gasto:r2(d.gasto),impressoes:x.im,cpm:r2(d.cpm),cliques:x.cl,cpc:r2(d.cpc),ctr:r4(d.ctr),
-    page_views:x.pv,cpv:r2(d.cpv),cr:r4(d.cr),checkouts:x.ck,cpic:r2(d.cpic),vischk:r4(d.vischk),
+    page_views:x.pv,cpv:r2(d.cpv),cr:r4(d.cr),carrinhos:x.atc,cpatc:r2(d.cpatc),txatc:r4(d.txatc),txck:r4(d.txck),checkouts:x.ck,cpic:r2(d.cpic),vischk:r4(d.vischk),
     convlp:r4(d.convlp),vendas:x.vendas,cac:r2(d.cac),convchk:r4(d.convchk),
     faturamento:r2(x.fat),roas:r2(d.roas),ticket:r2(d.ticket)};
 }
@@ -560,7 +597,7 @@ function iaRenderWin(){
     STATE.iaWin=c.dataset.w; localStorage.setItem('ia_win',STATE.iaWin); iaRenderWin();
   }));
 }
-function iaSumBuckets(arr){ const a=newBucket(); arr.forEach(x=>{a.sp+=x.sp;a.im+=x.im;a.cl+=x.cl;a.pv+=x.pv;a.ck+=x.ck;a.vendas+=x.vendas;a.vendasM+=x.vendasM;a.fat+=x.fat;}); return a; }
+function iaSumBuckets(arr){ const a=newBucket(); arr.forEach(x=>{a.sp+=x.sp;a.im+=x.im;a.cl+=x.cl;a.pv+=x.pv;a.ck+=x.ck;a.atc+=x.atc;a.vendas+=x.vendas;a.vendasM+=x.vendasM;a.fat+=x.fat;}); return a; }
 function iaPctDelta(a,b){ return (a==null||b==null||!isFinite(a)||!isFinite(b)||b===0)?null:+(((a-b)/b)*100).toFixed(1); }
 function iaCmp(dR,dP,k){ return {recente:r2(dR[k]), anterior:r2(dP[k]), variacao_pct:iaPctDelta(dR[k],dP[k])}; }
 function iaBuildData(){
@@ -573,7 +610,7 @@ function iaBuildData(){
   /* --- séries diárias e janelas de tendência (escopo Meta) --- */
   const dd=daily(fSmeta,fM);                              // buckets diários (asc)
   const serie=dd.slice(-90).map(x=>{const dv=derive(x); return {d:x.d, gasto:r2(dv.gasto), cpm:r2(dv.cpm),
-    ctr:r4(dv.ctr), cr:r4(dv.cr), vischk:r4(dv.vischk), convchk:r4(dv.convchk),
+    ctr:r4(dv.ctr), cr:r4(dv.cr), txatc:r4(dv.txatc), txck:r4(dv.txck), vischk:r4(dv.vischk), convchk:r4(dv.convchk),
     vendas:x.vendas, cac:r2(dv.cac), fat:r2(x.fat), roas:r2(dv.roas)};});
   const days=dd.map(x=>x.d), n=days.length, half=Math.max(1,Math.floor(n/2));
   let comparativo=null, recentSet=null, prevSet=null;
@@ -587,6 +624,7 @@ function iaBuildData(){
       janela_recente:{de:days[n-half], ate:days[n-1]},
       janela_anterior:prevSet.size?{de:days[Math.max(0,n-2*half)], ate:days[n-half-1]}:null,
       cpm:iaCmp(dR,dP,'cpm'), ctr:iaCmp(dR,dP,'ctr'), cr:iaCmp(dR,dP,'cr'),
+      txatc:iaCmp(dR,dP,'txatc'), txck:iaCmp(dR,dP,'txck'), cpatc:iaCmp(dR,dP,'cpatc'),
       vischk:iaCmp(dR,dP,'vischk'), convchk:iaCmp(dR,dP,'convchk'),
       cac:iaCmp(dR,dP,'cac'), roas:iaCmp(dR,dP,'roas'), gasto:iaCmp(dR,dP,'gasto'),
       vendas:{recente:R.vendas, anterior:P.vendas, variacao_pct:iaPctDelta(R.vendas,P.vendas)},
@@ -613,7 +651,7 @@ function iaBuildData(){
   return {
     periodo:{de:from,ate:to,janela_ia:STATE.iaWin,dias_no_periodo:n},
     imposto_meta_aplicado: STATE.tax,
-    obs:"Taxas em fração 0-1. cr=PageViews/Cliques; vischk=Checkouts/PageViews; convlp=Vendas/PageViews; convchk=Vendas/Checkouts. total_todas_vendas inclui vendas orgânicas; conversões e estruturas consideram apenas Meta Ads. Produto principal = "+MAIN_PRODUCT+". comparativo_periodo compara a janela recente vs a anterior (mesmo nº de dias) — use para detectar SATURAÇÃO/fadiga (ex.: CPM subindo + CTR/ROAS caindo). serie_diaria = evolução dia a dia. variacao_pct = variação % recente vs anterior. Cada estrutura traz 'tendencia' (recente vs anterior).",
+    obs:"Taxas em fração 0-1. cr=Connect Rate=PageViews/Cliques; txatc=Carrinhos/PageViews; txck=Checkouts/Carrinhos; cpatc=Gasto/Carrinhos; vischk=Checkouts/PageViews; convlp=Taxa de conversão=Vendas/PageViews; convchk=Taxa de compra=Vendas/Checkouts; cac=Custo por compra. total_todas_vendas inclui vendas orgânicas; conversões e estruturas consideram apenas Meta Ads. "+(ALL_MAIN?"E-commerce: cada pedido pago = 1 venda (sem produto principal).":"Produto principal = "+MAIN_PRODUCT+".")+" comparativo_periodo compara a janela recente vs a anterior (mesmo nº de dias) — use para detectar SATURAÇÃO/fadiga (ex.: CPM subindo + CTR/ROAS caindo). serie_diaria = evolução dia a dia. variacao_pct = variação % recente vs anterior. Cada estrutura traz 'tendencia' (recente vs anterior).",
     total_todas_vendas: iaMetricRow(t,derive(t)),
     total_meta_ads: iaMetricRow(tm,derive(tm)),
     comparativo_periodo: comparativo,
@@ -823,10 +861,15 @@ document.title=(B.client_sub?B.client_sub+' · ':'')+(B.client_name||'Dashboard'
 document.getElementById('logoMain').textContent=B.client_name||'—';
 document.getElementById('logoSub').textContent=B.client_sub||'';
 document.getElementById('taxLabel').textContent=B.tax_label||'Imposto';
-document.getElementById('mainProdNote').textContent=MAIN_PRODUCT;
-document.getElementById('mainProdNoteG').textContent=MAIN_PRODUCT;
-document.getElementById('mainProdNoteProdG').textContent=MAIN_PRODUCT;
-document.getElementById('mainProdNoteProdM').textContent=MAIN_PRODUCT;
+const RATES_TXT=HAS_ATC?'Connect Rate, Tx Carrinho, Tx Checkout, Tx Compra, Tx Conversão':'Connect Rate, Tx Checkout, Tx Compra, Tx Conversão';
+document.getElementById('noteG').innerHTML = ALL_MAIN
+  ? `Vendas e Faturamento = <b>todos os pedidos pagos</b> (${esc(MAIN_PRODUCT)}), de qualquer origem. Taxas de conversão (${RATES_TXT}) = <b>só Meta Ads</b>.`
+  : `Vendas e Faturamento = <b>totais</b> (todas as vendas). Vendas/Custo por Compra/Ticket = produto principal (${esc(MAIN_PRODUCT)}); taxas de conversão (${RATES_TXT}) = <b>só Meta Ads</b>.`;
+document.getElementById('noteM').innerHTML = ALL_MAIN
+  ? `Considera <b>apenas pedidos atribuídos ao Meta Ads</b> (utm_campaign + anúncio = Campaign Name + Ad Name). Cada pedido pago = 1 venda; Faturamento = valor total do pedido.`
+  : `Considera <b>apenas vendas atribuídas ao Meta Ads</b> (utm_campaign + anúncio = Campaign Name + Ad Name). <b>Vendas/Custo por Compra/Tx Compra/Ticket</b> = produto principal (${esc(MAIN_PRODUCT)}); <b>Faturamento/ROAS</b> = todos os produtos do funil (orderbumps/upsells).`;
+document.getElementById('noteProdG').textContent = ALL_MAIN ? 'Pedidos que contêm cada produto · % sobre o total de pedidos' : MAIN_PRODUCT+' = 100% · demais em % (todas as vendas)';
+document.getElementById('noteProdM').textContent = ALL_MAIN ? 'Pedidos que contêm cada produto · só Meta Ads' : MAIN_PRODUCT+' = 100% · só Meta Ads';
 document.getElementById('updated').innerHTML='Última atualização:<br>'+B.generated_at_brt+' (BRT)';
 document.getElementById('buildFoot').textContent='build __BUILD_ID__';
 document.getElementById('buildFoot2').textContent='· build __BUILD_ID__';

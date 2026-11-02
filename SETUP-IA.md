@@ -21,12 +21,12 @@ publica sozinho — sem repetir nada manualmente na Cloudflare.
 4. Clique no botão **Create**.
 5. Escolha **"Start from scratch"** (não use um template pronto de exemplo).
 6. Dê um nome ao Worker, igual ao que você vai colocar em `ia-worker/wrangler.toml`
-   (`<<PREENCHER: nome-do-worker, ex.: cliente-ia-insights>>`) → clique em **Deploy**.
+   (`ecosmetics-bf2026-ia-insights`) → clique em **Deploy**.
 7. Clique em **Edit code**, apague todo o conteúdo e cole o conteúdo de
    **`ia-worker/worker.js`** deste repositório → clique em **Deploy** (ou
    **Save and Deploy**).
 8. Copie a **URL** do Worker exibida (formato
-   `https://<<PREENCHER: nome-do-worker>>.<<PREENCHER: subdomínio workers.dev da conta Cloudflare>>.workers.dev`) — vai usar no
+   `https://ecosmetics-bf2026-ia-insights.<subdomínio-workers.dev-da-conta>.workers.dev`) — vai usar no
    passo A.4.
 
 ### A.2 — Pegar o Account ID e criar o API Token da Cloudflare
@@ -49,10 +49,10 @@ No repositório do cliente no GitHub:
 
 1. **Settings → Secrets and variables → Actions → New repository secret**.
 2. Cadastre, um de cada vez (**Add secret** depois de cada um):
-   - `CLOUDFLARE_API_TOKEN` = `<<PREENCHER: API Token da Cloudflare (passo A.2.6)>>`
-   - `CLOUDFLARE_ACCOUNT_ID` = `<<PREENCHER: Account ID da Cloudflare (passo A.2.1)>>`
-   - `ANTHROPIC_API_KEY` = `<<PREENCHER: chave da API Anthropic do cliente>>`
-   - `INSIGHTS_PASSWORD` = `<<PREENCHER: senha da aba IA Insights>>`
+   - `CLOUDFLARE_API_TOKEN` = *(API Token da Cloudflare — passo A.2.6)*
+   - `CLOUDFLARE_ACCOUNT_ID` = *(Account ID da Cloudflare — passo A.2.1)*
+   - `ANTHROPIC_API_KEY` = *(chave da API Anthropic do cliente)*
+   - `INSIGHTS_PASSWORD` = *(senha da aba IA Insights)*
 
    Esses valores vão **só** nos Secrets do GitHub — nunca em arquivo do repositório.
 
@@ -89,8 +89,8 @@ Use só se não quiser depender do Actions para o Worker.
 
 1. Siga a Opção A.1 para criar o Worker e colar o código.
 2. Na página do Worker, aba **Settings** → seção **Variables and Secrets** → **Add**:
-   - Tipo **Secret** → nome `ANTHROPIC_API_KEY` → valor `<<PREENCHER: chave da API Anthropic do cliente>>`
-   - Tipo **Secret** → nome `INSIGHTS_PASSWORD` → valor `<<PREENCHER: senha da aba IA Insights>>`
+   - Tipo **Secret** → nome `ANTHROPIC_API_KEY` → valor *(chave da API Anthropic do cliente)*
+   - Tipo **Secret** → nome `INSIGHTS_PASSWORD` → valor *(senha da aba IA Insights)*
    - Clique em **Save** (ou **Deploy**) para aplicar.
 3. Configure a URL + senha na aba IA Insights (igual ao passo A.5).
 
@@ -99,8 +99,8 @@ Use só se não quiser depender do Actions para o Worker.
 ```bash
 cd ia-worker
 npx wrangler deploy
-echo "<<PREENCHER: chave da API Anthropic>>" | npx wrangler secret put ANTHROPIC_API_KEY
-echo "<<PREENCHER: senha da aba IA Insights>>" | npx wrangler secret put INSIGHTS_PASSWORD
+echo "CHAVE_ANTHROPIC_AQUI" | npx wrangler secret put ANTHROPIC_API_KEY
+echo "SENHA_IA_AQUI" | npx wrangler secret put INSIGHTS_PASSWORD
 ```
 Depois copie a URL que o deploy imprime e configure na aba IA Insights (passo A.5).
 

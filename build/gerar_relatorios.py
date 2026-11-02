@@ -65,12 +65,12 @@ def extract_xlsx(xlsx_path: str, meta_out: str, sales_out: str) -> None:
 # Métricas (mesma matemática do app.js: derive/agg)
 # --------------------------------------------------------------------------- #
 def new_bucket() -> dict:
-    return dict(sp=0.0, im=0.0, cl=0.0, pv=0.0, ck=0.0, vendas=0, vendasM=0, fat=0.0)
+    return dict(sp=0.0, im=0.0, cl=0.0, pv=0.0, atc=0.0, ck=0.0, vendas=0, vendasM=0, fat=0.0)
 
 
 def add_meta(a: dict, m: dict) -> None:
-    for k in ("sp", "im", "cl", "pv", "ck"):
-        a[k] += m[k]
+    for k in ("sp", "im", "cl", "pv", "atc", "ck"):
+        a[k] += m.get(k, 0.0)
 
 
 def add_sale(a: dict, s: dict) -> None:
@@ -86,9 +86,12 @@ def sd(n, d):
 def derive(a: dict, tax: float) -> dict:
     g = a["sp"] * tax
     return dict(
-        gasto=g, impr=a["im"], cliques=a["cl"], pv=a["pv"], ck=a["ck"], vendas=a["vendas"], fat=a["fat"],
+        gasto=g, impr=a["im"], cliques=a["cl"], pv=a["pv"], atc=a["atc"], ck=a["ck"], vendas=a["vendas"], fat=a["fat"],
         cpm=sd(g * 1000, a["im"]), ctr=sd(a["cl"], a["im"]), cpc=sd(g, a["cl"]), cpv=sd(g, a["pv"]),
         cr=sd(a["pv"], a["cl"]), cpic=sd(g, a["ck"]), vischk=sd(a["ck"], a["pv"]),
+        # Etapa Carrinho (e-commerce): custo por carrinho, taxa de carrinho
+        # (Carrinhos/Page Views) e taxa de checkout (Checkouts/Carrinhos).
+        cpatc=sd(g, a["atc"]), txatc=sd(a["atc"], a["pv"]), txck=sd(a["ck"], a["atc"]),
         convchk=sd(a["vendasM"], a["ck"]), convlp=sd(a["vendasM"], a["pv"]),
         cac=sd(g, a["vendas"]), roas=sd(a["fat"], g), ticket=sd(a["fat"], a["vendas"]),
     )
@@ -156,7 +159,7 @@ def period_metrics(meta, sales, a, b, tax):
     dT, dA = derive(totals(meta, sales, a, b, False), tax), derive(totals(meta, sales, a, b, True), tax)
 
     def pack(d):
-        return {k: r(d[k], 2 if k in ("gasto", "cpm", "cpc", "cpv", "cpic", "cac", "fat", "ticket", "roas") else 4)
+        return {k: r(d[k], 2 if k in ("gasto", "cpm", "cpc", "cpv", "cpatc", "cpic", "cac", "fat", "ticket", "roas") else 4)
                 for k in d}
 
     camps = []

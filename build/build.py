@@ -11,8 +11,9 @@ Lê duas abas de uma planilha Google (export CSV público) e emite os REGISTROS
 BRUTOS (meta[] / sales[]) dentro do HTML. Todo o cálculo/filtro/gráfico roda no
 navegador (ver build/template.html). Somente leitura; nunca escreve nas planilhas.
 
-Funil VSL / tráfego direto — não há etapa de "Leads"/"MQL":
-    Gasto → Impressões → Cliques → Page Views → Checkouts → Vendas → Faturamento
+Funil de tráfego direto (VSL ou e-commerce) — não há etapa de "Leads"/"MQL":
+    Gasto → Impressões → Cliques → Page Views → [Carrinhos] → Checkouts → Vendas → Faturamento
+(a etapa Carrinhos usa a coluna "Adds to Cart" do Meta, se existir.)
 
 Teste local: python build/build.py --meta-file meta.csv --sales-file sales.csv --out dist/index.html
 """
@@ -91,6 +92,14 @@ if AD_UTM_COLUMN not in _AD_UTM_VALIDAS:
         f"ERRO: AD_UTM_COLUMN={AD_UTM_COLUMN!r} em build/config.py nao e valido.\n"
         "Use um de: " + ", ".join(_AD_UTM_VALIDAS) + "."
     )
+# MAIN_PRODUCT_PREFIX = "*" -> todo pedido conta como venda (e-commerce: não há
+# produto principal; a "venda" é o pedido, qualquer que seja o produto).
+ALL_PRODUCTS_MAIN = MAIN_PRODUCT_PREFIX.strip() == "*"
+# Sobrescreve os aliases de colunas da aba de Compradores (por chave interna:
+# created, name, email, prod, val, utm_*, status). Lista vazia = coluna ausente.
+SALES_COLUMNS = getattr(cfg, "SALES_COLUMNS", {}) or {}
+# Descarta linhas (Meta e vendas) anteriores a esta data (YYYY-MM-DD). Vazio = tudo.
+DATE_MIN = (getattr(cfg, "DATE_MIN", "") or "").strip()
 
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
 META_CSV_URL = EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_META)
@@ -176,6 +185,8 @@ def is_paid(status: str) -> bool:
 
 
 def is_main_product(prod: str) -> bool:
+    if ALL_PRODUCTS_MAIN:
+        return True
     return norm(prod).startswith(MAIN_PRODUCT_PREFIX)
 
 
@@ -204,11 +215,16 @@ def header_index(header, wanted, fallback):
     hn = [norm(h) for h in header]
     for key, aliases in wanted.items():
         found = None
-        for a in aliases:
-            a = norm(a)
-            for i, h in enumerate(hn):
-                if h == a or (a and a in h):
-                    found = i
+        # 1ª passada: nome EXATO (evita "total" casar com "subtotal", "status"
+        # com "status_pagamento" etc.); 2ª passada: nome contido no cabeçalho.
+        for exact in (True, False):
+            for a in aliases:
+                a = norm(a)
+                for i, h in enumerate(hn):
+                    if h == a or (not exact and a and a in h):
+                        found = i
+                        break
+                if found is not None:
                     break
             if found is not None:
                 break
@@ -237,6 +253,7 @@ def process(meta_rows, sales_rows):
          "spent": ["amount spent", "valor gasto", "gasto"], "impr": ["impressions", "impress"],
          "clicks": ["link clicks", "clicks", "cliques"],
          "pv": ["landing page views", "page views", "pageview", "landing"],
+         "atc": ["adds to cart", "add to cart", "adicoes ao carrinho", "carrinho"],
          "ck": ["checkouts initiated", "checkouts", "initiate checkout", "checkout"],
          # Link do criativo no Instagram (coluna acrescentada pelo cliente na aba
          # Meta Ads). Usada na aba Relatórios (Top/Piores anúncios) para linkar o
@@ -263,6 +280,9 @@ def process(meta_rows, sales_rows):
             continue
         if is_test_row(" ".join(str(c) for c in row)):
             continue
+        mday = parse_date(cell(row, midx["day"]))
+        if DATE_MIN and mday and mday < DATE_MIN:
+            continue
         camp = cell(row, midx["campaign"]) or "(sem campanha)"
         adset = cell(row, midx["adset"]) or "(sem conjunto)"
         ad = cell(row, midx["ad"]) or "(sem anúncio)"
@@ -273,12 +293,13 @@ def process(meta_rows, sales_rows):
         if link and ad not in ad_links:
             ad_links[ad] = link
         meta.append({
-            "d": parse_date(cell(row, midx["day"])),
+            "d": mday,
             "camp": camp, "adset": adset, "ad": ad,
             "sp": round(to_float(cell(row, midx["spent"])), 4),
             "im": to_float(cell(row, midx["impr"])),
             "cl": to_float(cell(row, midx["clicks"])),
             "pv": to_float(cell(row, midx["pv"])),
+            "atc": to_float(cell(row, midx["atc"])) if midx["atc"] is not None else 0.0,
             "ck": to_float(cell(row, midx["ck"])),
         })
 
@@ -286,9 +307,7 @@ def process(meta_rows, sales_rows):
     # Colunas reais: Data de Criação · Cliente / Nome · Cliente / E-mail · Produto ·
     #   Valor da Venda · UTM Content · UTM Campaign · UTM Medium · UTM Source · Status
     sheader = sales_rows[0] if sales_rows else []
-    sidx = header_index(
-        sheader,
-        {"created": ["data de criacao", "data", "created", "created_time"],
+    swanted = {"created": ["data de criacao", "data", "created", "created_time"],
          "name": ["cliente / nome", "nome", "full_name"],
          "email": ["cliente / e-mail", "e-mail", "email"],
          "prod": ["produto", "product"],
@@ -299,14 +318,26 @@ def process(meta_rows, sales_rows):
          "utm_term": ["utm term", "utm_term"],
          "utm_campaign": ["utm campaign", "utm_campaign"],
          "utm_medium": ["utm medium", "utm_medium"],
-         "status": ["status"]},
+         "status": ["status"]}
+    sfallback = {"created": 3, "name": 1, "email": 2, "prod": 0, "val": 6}
+    # Overrides do cliente (build/config.py -> SALES_COLUMNS): lista de nomes
+    # de coluna; lista vazia = coluna inexistente (sem fallback posicional).
+    for k, v in SALES_COLUMNS.items():
+        swanted[k] = list(v)
+        sfallback.pop(k, None)
+    sidx = header_index(
+        sheader,
+        swanted,
         # Fallback posicional só p/ colunas que existem nesta planilha
         # (Produto·Nome·Email·Data·Valor·Taxas·Faturamento). Sem fallback p/
         # utm_*/status: a planilha não tem essas colunas, então ausência -> vazio
         # (evita casar por posição com Taxas/Faturamento). Se um dia houver colunas
         # UTM nomeadas, o match por nome acima as detecta normalmente.
-        {"created": 3, "name": 1, "email": 2, "prod": 0, "val": 6},
+        sfallback,
     )
+    for k, v in SALES_COLUMNS.items():
+        if not v:
+            sidx[k] = None
 
     sales = []
     for row in sales_rows[1:]:
@@ -315,6 +346,9 @@ def process(meta_rows, sales_rows):
         if is_test_row(" ".join(str(c) for c in row)):
             continue
         if not COUNT_ALL_AS_PAID and not is_paid(cell(row, sidx["status"])):
+            continue
+        sday = parse_date(cell(row, sidx["created"]))
+        if DATE_MIN and sday and sday < DATE_MIN:
             continue
         prod = cell(row, sidx["prod"])
         # O identificador do anúncio no Meta (Ad Name) vem da coluna UTM apontada
@@ -342,7 +376,7 @@ def process(meta_rows, sales_rows):
             camp = sale_camp
             adset = cell(row, sidx["utm_medium"]) or "(sem conjunto)"
         sales.append({
-            "d": parse_date(cell(row, sidx["created"])),
+            "d": sday,
             "camp": camp, "adset": adset, "ad": ad,
             "prod": prod or "—",
             "val": round(to_float(cell(row, sidx["val"])), 2),
@@ -370,6 +404,8 @@ def process(meta_rows, sales_rows):
             "tax_label": TAX_LABEL,
             "main_product": MAIN_PRODUCT,
             "main_product_prefix": MAIN_PRODUCT_PREFIX,
+            "all_products_main": ALL_PRODUCTS_MAIN,
+            "has_atc": midx["atc"] is not None,
             "ia_worker_url": IA_WORKER_URL,
             # Metas da aba Relatórios (código de cor de CAC/ROAS)
             "cac_target": CAC_TARGET,

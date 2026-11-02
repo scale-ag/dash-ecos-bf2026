@@ -1,8 +1,8 @@
 # CLAUDE.md — Dashboard de Controle de Tráfego Pago (TEMPLATE)
 
 > Este arquivo é lido automaticamente pelo Claude Code ao abrir o repositório.
-> **TEMPLATE** — configurado para o cliente **<<PREENCHER: nome do cliente>>**
-> (funil "<<PREENCHER: nome do funil/lançamento>>", sigla `<<PREENCHER: sigla do funil usada nas campanhas>>`).
+> Configurado para o cliente **Ecosmetics** (funil "Black Friday 2026", sigla
+> `zenith_ecom_vendas` — prefixo de todas as campanhas do Meta).
 > A engine (`build/template.html`, `build/build.py`, `build/app.js`, CSS,
 > `ia-worker/worker.js`, workflows) é genérica e não deve ser editada por
 > cliente; os valores do cliente ficam em **`build/config.py`** (config do funil)
@@ -74,58 +74,84 @@ via CDN) publicado no **GitHub Pages**, que cruza o gerenciador **Meta Ads** com
 de **Compradores** e se atualiza a cada ~30 min (build na nuvem via GitHub Actions,
 disparado pelo cron-job.org). **Somente leitura** das planilhas.
 
-- **URL pública:** `<<PREENCHER: URL do GitHub Pages, ex.: https://<owner>.github.io/<repo>/>>`
-- **Cliente/projeto:** <<PREENCHER: nome do cliente — nome do funil/lançamento>>
+- **URL pública:** `https://scale-ag.github.io/dash-ecos-bf2026/`
+- **Cliente/projeto:** Ecosmetics — Black Friday 2026 (E-commerce Nuvemshop)
   (rótulos exibidos vêm de `CLIENT_NAME`/`CLIENT_SUB` em `build/config.py`)
-- **Tipo de funil:** lançamento pago / tráfego direto (não há etapa de Leads/MQL) —
-  `Gasto → Impressões → Cliques → Page Views → Checkouts → Vendas → Faturamento`
+- **Tipo de funil:** e-commerce / tráfego direto (não há Leads/MQL nem VSL; o
+  "lead" é a própria compra) — Anúncio → Página → Adição ao Carrinho → Checkout → Compra:
+  `Gasto → Impressões → Cliques → Views da Página → Carrinhos → Checkouts → Compras → Faturamento`
 
 ## Fontes de dados (Google Sheets)
 
-Leitura via export CSV, **somente leitura**. Por padrão Meta Ads e Compradores
-ficam na mesma planilha (mudam só os gids); se o cliente usar duas planilhas,
-preencha também `SPREADSHEET_ID_SALES` em `build/config.py`.
+Leitura via export CSV, **somente leitura** (nunca modificar as planilhas). Neste
+cliente são **duas planilhas** (`SPREADSHEET_ID` e `SPREADSHEET_ID_SALES`).
 
 | Fonte | Planilha (`SPREADSHEET_ID*`) | gid | Aba |
 |-------|------------------------------|-----|-----|
-| **Meta Ads** | `<<PREENCHER: SPREADSHEET_ID>>` | `<<PREENCHER: GID_META>>` | <<PREENCHER: nome da aba Meta Ads>> |
-| **Compradores** | `<<PREENCHER: SPREADSHEET_ID_SALES ou o mesmo SPREADSHEET_ID>>` | `<<PREENCHER: GID_SALES>>` | <<PREENCHER: nome da aba de Compradores/Vendas>> |
+| **Meta Ads** | `1j62VMK7led4OIdt2_qKdd_ExE-VRjH_ya0r2HCmvvFw` ("Extração Dashboard Black Friday") | `0` | Página1 (única aba) |
+| **Compradores** | `1B65YpgnjsvB0EaH0xWKnru_OAJKlwujQrK6dj1s4nFk` ("Vendas Nuvemshop - Ecosmetics") | `1257918218` | vendas |
 
 **Colunas reais — Meta Ads** (o `header_index` do `build.py` casa por nome, a
 ordem não importa):
-<<PREENCHER: lista das colunas da aba Meta Ads, ex.: Day · Campaign Name · Ad Set Name · Ad Name · Amount Spent · Impressions · Link Clicks · Landing Page Views · Checkouts Initiated>>
+Day · Campaign Name · Ad Set Name · Ad Name · Impressions · Link Clicks ·
+Landing Page Views · Adds to Cart · Checkouts Initiated · Amount Spent
+(`Amount Spent` com vírgula decimal; células vazias = 0. Sem coluna de permalink
+do criativo → a coluna "Link" dos Top/Piores anúncios fica "—".)
 
 **Colunas reais — Compradores** (as usadas pelo build: data, nome, e-mail,
 produto, valor/faturamento, utm_campaign, utm_medium, coluna de `AD_UTM_COLUMN`,
 status se houver):
-<<PREENCHER: lista das colunas da aba de Compradores e qual delas é a receita>>
+id_pedido · numero · **data** · hora · criado_em · pago_em · atualizado_em · status ·
+**status_pagamento** · subtotal · desconto · frete · **total** · cupom · meio_pagamento ·
+parcelas · cliente_id · qtd_itens · **produtos** · landing_url · utm_source · **utm_medium** ·
+**utm_campaign** · **utm_content** · utm_term · sincronizado_em · origem_detectada ·
+influenciador · dispositivo
+
+Usadas pelo build (via `SALES_COLUMNS` em `build/config.py`): data = `data`,
+receita = **`total`** (valor do pedido com frete e desconto), status = `status_pagamento`
+(só `paid` conta), itens = `produtos` ("1x Produto A | 2x Produto B"). Não há colunas
+de nome nem de e-mail (a tabela de compradores mostra "—").
 
 ### Pontos de atenção deste cliente
 
-<<PREENCHER: particularidades verificadas na planilha (data da verificação) —
-ex.: qual coluna UTM carrega o Ad Name e quantos valores batem com o Meta,
-janelas de data sem sobreposição, ausência de coluna de status, coluna de
-receita (bruta/líquida), ausência da coluna de permalink do criativo, abas que
-NÃO devem ser usadas. Apague este bloco se não houver nada a registrar.>>
+Verificado em 02/11/2026:
+- **`utm_content` = Ad Name** (53 valores batem com o Meta; `utm_term` bate 0 —
+  traz o ID do anúncio ou o posicionamento `Instagram_Feed`/`Stories`).
+  `utm_campaign` + `utm_content` casam com o par Campaign Name + Ad Name do Meta em
+  52 pedidos de 01–02/11 (43 pagos).
+- **Catálogo:** nas vendas da campanha `..._catalogo` o `utm_content` chega truncado
+  ("CATÁLOGO", "CA", "C"...) e só parte delas casa com o Ad Name
+  `CATÁLOGO ALL PRODUCTS` — essas vendas aparecem no Total, mas nem todas na aba Meta Ads.
+- **Status:** usar `status_pagamento` (paid/pending/voided/refunded), **não** a
+  coluna `status` (open/closed/cancelled = status do pedido).
+- **Histórico:** a aba `vendas` traz pedidos desde 2024; `DATE_MIN = "2026-11-01"`
+  em `build/config.py` limita o dashboard ao período da Black Friday 2026.
+- A aba **"Metas BF 2026"** da planilha de vendas **NÃO** é usada pelo build (é um
+  painel de metas de faturamento). Bate com o build: 01/11 = 69 pedidos / R$ 21.472.
 
 ### Critério de MQL
 
-Funil de lançamento pago sem etapa de Leads/MQL. <<PREENCHER: confirmar com o
-gestor se há critério de MQL; se não houver, manter "não há etapa de MQL nesta dashboard".>>
+Funil de e-commerce sem etapa de Leads/MQL — não há etapa de MQL nesta dashboard.
 
 URL de export CSV: `https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID}`
 
 ### Métricas do funil (`build.py` + `template.html`)
-`Gasto → Impressões → Cliques → Page Views → Checkouts → Vendas → Faturamento`
+`Gasto → Impressões → Cliques → Views da Página → Carrinhos → Checkouts → Compras → Faturamento`
 
-Gasto · Impressões · CPM · Cliques · CPC · CTR · Page Views · CPV · CR (Cliques/PageViews) ·
-Checkouts · CPIC · VisCHK (Checkouts/PageViews) · Vendas · CAC (Gasto/Vendas) ·
-ConvCHK (Vendas/Checkouts) · Faturamento · ROAS (Faturamento/Gasto) · Ticket (Faturamento/Vendas).
+Gasto · Impressões · CPM · Cliques · CPC · CTR · Views LP · **Custo/View** (Gasto/Views) ·
+**Connect Rate** (Views/Cliques) · Carrinhos · **Custo/Carrinho** (Gasto/Carrinhos) ·
+**Tx Carrinho** (Carrinhos/Views) · Checkouts · **Custo/Checkout** (Gasto/Checkouts) ·
+**Tx Checkout** (Checkouts/Carrinhos) · Vendas · **Custo/Compra** = CAC (Gasto/Vendas) ·
+**Tx Compra** (Vendas/Checkouts) · **Tx Conversão** (Vendas/Views) · Faturamento ·
+ROAS (Faturamento/Gasto) · Ticket (Faturamento/Vendas).
+A etapa Carrinho é lida da coluna `Adds to Cart` do Meta; se ela não existir, a engine
+esconde as colunas de carrinho e a Tx Checkout volta a ser Checkouts/Views.
 
 ### Produto principal / atribuição
 - **Produto principal** = `MAIN_PRODUCT_PREFIX` (definido em `build/config.py`) —
-  neste cliente: <<PREENCHER: nome do produto principal como aparece na planilha>>.
-  Base de **Vendas / CAC / ConvCHK / Ticket**.
+  neste cliente: **`"*"` — não há produto principal**; cada pedido pago = 1 venda
+  (rótulo "Pedidos da loja"). A tabela "Vendas por produto" conta em quantos pedidos
+  cada produto aparece.
 - **Faturamento / ROAS** = soma de **todos os produtos** do funil (orderbumps/upsells).
 - Uma venda entra no funil se: é o produto principal **OU** a combinação
   **`utm_campaign` + coluna de `AD_UTM_COLUMN`** (campanha + anúncio) casa com uma
@@ -137,20 +163,30 @@ ConvCHK (Vendas/Checkouts) · Faturamento · ROAS (Faturamento/Gasto) · Ticket 
   recebe `meta=1` (é o que a aba Meta Ads considera tráfego pago). Vendas de outros
   funis (UTM/produto não relacionados) ficam de fora. Só conta status pago (ou todas
   as linhas, se `COUNT_ALL_AS_PAID = True`).
-- <<PREENCHER: regra de atribuição específica deste cliente, se diferente da padrão acima; senão apague esta linha.>>
+- Ecosmetics: como todo pedido pago é "produto principal", **toda venda paga entra no
+  Total** (Visão Geral, qualquer origem: Meta, Google, influenciadores, orgânico); só as
+  que casam campanha+anúncio com o Meta recebem `meta=1` e entram na aba Meta Ads.
 - Se não houver coluna de Receita, não há Receita/ROAS/Ticket — ajuste o texto desta
   seção se o cliente tiver uma regra diferente.
 
 ### Imposto Meta Ads
-Toggle ON aplica o `TAX_FACTOR` (definido em `build/config.py`) sobre os custos do Meta.
+Toggle ON aplica o `TAX_FACTOR` (definido em `build/config.py`) sobre os custos do Meta —
+neste cliente **1,1215**. Metas da aba Relatórios: **ROAS 3,0** e **CAC R$ 99** (ticket
+médio Meta de 01–02/11 ≈ R$ 297 ÷ 3; ajustar se o gestor definir um CAC próprio).
 
 ### Convenções de campanha
-- Nomenclatura de campanha: `<<PREENCHER: padrão do nome de campanha, ex.: SIGLA | ETAPA | TEMPERATURA | ...>>`
-- Nomenclatura de conjunto: `<<PREENCHER: padrão do nome de conjunto>>`
-- Nomenclatura de anúncio: `<<PREENCHER: padrão do nome de anúncio>>`
+- Nomenclatura de campanha: `zenith_ecom_vendas_<DD-MM-AA de início>_<evento/tema>_<abo|cbo>_<estratégia>`
+  (ex.: `zenith_ecom_vendas_01-11-26_black-friday-26_cbo_escala`,
+  `..._abo_rmkt`, `..._abo_teste-criativos`, `..._cbo_bid-cap`, `zenith_ecom_vendas_01-11-26_catalogo`).
+  Sigla do funil: **`zenith_ecom_vendas`** (todas as campanhas da aba Meta entram no dashboard).
+- Nomenclatura de conjunto: `<auto|ig>_<gênero hm|h&m|m>_<faixa etária 25a64>_[br_]<público>`
+  (ex.: `auto_hm_25a64_aberto-adv`, `auto_hm_25a64_engajamento-90D`,
+  `auto_hm_25a64_visitantes-e-carrinhos-30D`, `auto_hm_25a64_clientes`).
+- Nomenclatura de anúncio: `ADS<nº>[_RMKT]_<tema>_<formato>` (ex.: `ADS52_Black Friday_Loja_Out`,
+  `ADS37_RMKT_Black Friday_Loja_Out`); catálogo: `CATÁLOGO ALL PRODUCTS`.
 - Mapeamento UTM → Meta neste cliente (verificado nos dados):
   `utm_campaign → Campaign Name` · `utm_medium → Ad Set Name` ·
-  `<<PREENCHER: coluna de AD_UTM_COLUMN>> → Ad Name`.
+  `utm_content → Ad Name`.
 
 O match com o Meta (campo `meta`, usado pela aba Meta Ads) exige `utm_campaign` +
 a coluna de `AD_UTM_COLUMN` batendo com uma linha real do Meta; quando casa, a venda
@@ -179,7 +215,7 @@ pelo `build.py` no `render()` — assim dá para mexer só em cor/layout sem toc
 
 ```
 build/build.py             # ENGINE: lê os 2 CSVs (read-only), emite meta[]/sales[] e COSTURA os arquivos abaixo
-build/config.py            # CONFIG DO CLIENTE (troque os marcadores <<PREENCHER>>)
+build/config.py            # CONFIG DO CLIENTE (Ecosmetics — preenchido)
 build/config.example.py    # modelo comentado de build/config.py
 build/template.html        # esqueleto HTML (placeholders __STYLES__ / __APP_JS__ / __DATA_JSON__)
 build/identidade-visual.css # ⭐ TODAS as cores (temas claro/escuro, paleta de gráficos, heatmap). Edite AQUI p/ mexer só em cor.
@@ -189,14 +225,14 @@ build/app.js               # lógica + renderização (gráficos/heatmap leem as
 .github/workflows/deploy-worker.yml  # publica o Worker da IA Insights (Cloudflare)
 .github/workflows/gerar-relatorios-metrics.yml # 23:50 BRT: busca as planilhas e commita relatorios_metrics.json
 ia-worker/worker.js    # backend da aba IA Insights (ENGINE — não editar por cliente)
-ia-worker/wrangler.toml # nome do Worker (marcador <<PREENCHER>> no campo name)
+ia-worker/wrangler.toml # nome do Worker (ecosmetics-bf2026-ia-insights)
 build/relatorios.json  # briefings do Gestor por período (aba Relatórios) — VERSIONADO (criado pela Routine; não vem no template)
 build/relatorios_metrics.json # números por período (gerado pelo Actions, lido pela Routine) — VERSIONADO (criado pelo Actions; não vem no template)
 build/gerar_relatorios.py # calcula as métricas por período (rodado pelo Actions, não pela Routine)
 build/GUIA-RELATORIOS.md  # passo a passo da Routine que regenera os briefings
 dist/index.html        # saída gerada (gitignored; o Actions reconstrói)
 GUIA-REPLICACAO.md     # engine explicada + solução dos problemas de publicação
-config.js               # metadados de publicação (GitHub) — marcadores <<PREENCHER>>
+config.js               # metadados de publicação (GitHub) — scale-ag/dash-ecos-bf2026
 config.example.js       # cópia vazia de config.js, para referência
 AGENTS.md               # checklist + resumo para outros agentes (Codex etc.)
 SETUP-CRON.md          # valores do cron-job.org (owner/repo com marcadores)

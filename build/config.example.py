@@ -43,6 +43,7 @@ TAX_FACTOR = 1.0
 # Produto principal do funil (base de Vendas/CAC/ConvCHK/Ticket). Casamento
 # por PREFIXO sobre o nome NORMALIZADO (sem acento, minúsculas) da coluna
 # Produto da planilha de Compradores — escreva sem acento e em minúsculas.
+# "*" = e-commerce: todo pedido pago conta como 1 venda (sem produto principal).
 MAIN_PRODUCT_PREFIX = "<<PREENCHER: prefixo do produto principal, sem acento e em minúsculas>>"
 
 # Qual coluna UTM da planilha de Compradores carrega o Ad Name do Meta:
@@ -57,6 +58,15 @@ AD_UTM_COLUMN = "<<PREENCHER: utm_content | utm_term | utm_medium — a coluna q
 # concretizada) -> True (conta todas as linhas como venda paga).
 # <<PREENCHER: True se toda linha é venda paga; False se há coluna Status confiável>>
 COUNT_ALL_AS_PAID = True
+
+# OPCIONAL — colunas da aba de Compradores, quando os nomes não batem com os
+# aliases do build.py. Chaves: created, name, email, prod, val, utm_content,
+# utm_term, utm_campaign, utm_medium, status. Lista vazia = coluna inexistente.
+# Ex.: SALES_COLUMNS = {"val": ["total"], "status": ["status_pagamento"], "name": []}
+SALES_COLUMNS = {}
+
+# OPCIONAL — ignora linhas (Meta e vendas) anteriores a esta data (YYYY-MM-DD).
+DATE_MIN = ""
 
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE

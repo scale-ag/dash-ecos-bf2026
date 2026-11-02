@@ -1,7 +1,7 @@
 # Ativação + configuração do cron-job.org
 
-> owner/repo: `<<PREENCHER: owner do GitHub>>/<<PREENCHER: nome do repositório>>` · URL do Pages:
-> `https://<<PREENCHER: owner do GitHub>>.github.io/<<PREENCHER: nome do repositório>>/` (mesmos valores de `config.js`). O **token
+> owner/repo: `scale-ag/dash-ecos-bf2026` · URL do Pages:
+> `https://scale-ag.github.io/dash-ecos-bf2026/` (mesmos valores de `config.js`). O **token
 > nunca é comitado** no repositório: ele vai apenas no cron-job.org.
 
 ## Passo 1 — Colocar na branch `main` (uma vez)
@@ -21,14 +21,14 @@ Ligue uma vez em **Settings → Pages → Build and deployment → Source: GitHu
 Actions** e re-execute o workflow. A partir daí todos os builds seguintes
 publicam sozinhos.
 
-URL pública após publicar: `https://<<PREENCHER: owner do GitHub>>.github.io/<<PREENCHER: nome do repositório>>/`
+URL pública após publicar: `https://scale-ag.github.io/dash-ecos-bf2026/`
 
 Disparar a 1ª execução na mão: aba **Actions** → *Build & Deploy Dashboard* → **Run workflow**.
 
 ## Passo 2 — Token (fine-grained, recomendado)
 
 GitHub → *Settings* → *Developer settings* → **Fine-grained tokens** → *Generate*:
-- Repository access: **Only select repositories → `<<PREENCHER: nome do repositório>>`**
+- Repository access: **Only select repositories → `dash-ecos-bf2026`**
 - Permissions → **Actions: Read and write**
 
 Guarde o token; ele vai só no cron-job.org.
@@ -37,7 +37,7 @@ Guarde o token; ele vai só no cron-job.org.
 
 ### URL
 ```
-https://api.github.com/repos/<<PREENCHER: owner do GitHub>>/<<PREENCHER: nome do repositório>>/actions/workflows/deploy.yml/dispatches
+https://api.github.com/repos/scale-ag/dash-ecos-bf2026/actions/workflows/deploy.yml/dispatches
 ```
 ### Método
 ```
@@ -47,12 +47,12 @@ POST
 ```
 A cada 30 minutos  (Every 30 minutes)
 ```
-### Headers (um por linha)
+### Headers (um por linha — `TOKEN_AQUI` = token fine-grained do Passo 2, só no cron-job.org, nunca no repo)
 ```
 Accept: application/vnd.github+json
 ```
 ```
-Authorization: Bearer <<PREENCHER: token fine-grained do Passo 2 — só no cron-job.org, nunca no repo>>
+Authorization: Bearer TOKEN_AQUI
 ```
 ```
 X-GitHub-Api-Version: 2022-11-28
