@@ -205,6 +205,21 @@ diária, tabela por dia) + a tabela **Criativos** (por Ad Name): Gasto · CPM ·
 leva **só** esses dados (`client_data()` no `build.py`): sem campanha/conjunto,
 produtos, briefings nem Worker da IA.
 
+## Quando e o que vende (Visão Geral — interna e `/cliente/`)
+
+Seção abaixo do funil, seguindo o filtro de período (dados a partir de 01/11/2026):
+- **Vendas por dia da semana** (Seg→Dom): vendas, faturamento, gasto Meta e ROAS.
+- **Vendas por hora do dia** (coluna `hora` da aba vendas = hora do pedido na loja).
+  **ROAS por hora** só aparece com gasto por hora do Meta: criar no Adveronix uma
+  **aba separada** na planilha do Meta com detalhamento *Hour of day* (Day · Hour ·
+  Amount Spent) e colocar o gid em `GID_META_HOURLY` (`build/config.py`). Não pôr
+  a hora na aba Página1 (multiplica as linhas e quebra o match com as vendas).
+- **Mapa de calor dia da semana × hora** (pedidos pagos; tooltip com faturamento).
+- **Vendas por produto**: pedidos que contêm o produto, unidades (do "2x" em
+  `produtos`) e % dos pedidos. Não há faturamento por produto: a planilha só traz o
+  total do pedido.
+Vendas/Faturamento aqui = todos os pedidos pagos (todas as origens), como no funil.
+
 ## IA Insights
 
 Aba de análise por IA (Claude) do funil e das estruturas ativas — ver `SETUP-IA.md`

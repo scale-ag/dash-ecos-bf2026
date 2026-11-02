@@ -89,12 +89,26 @@
           </div>
         </div>
 
+        <h2 class="sec-title">Quando e o que vende</h2>
+        <div class="grid when-grid">
+          <div class="card"><h3>Vendas por dia da semana</h3><p class="hint">Vendas (barras) · Gasto Meta e Faturamento (R$) · ROAS — no período filtrado.</p><div class="chart-box"><canvas id="gWeek"></canvas></div></div>
+          <div class="card"><h3>Vendas por hora do dia</h3><p class="hint" id="hourHint"></p><div class="chart-box"><canvas id="gHour"></canvas></div></div>
+        </div>
+        <div class="card" style="padding:0;margin-top:16px">
+          <div style="padding:14px 15px 4px"><h3>Mapa de calor · dia da semana × hora</h3><p class="hint" style="margin:0">Pedidos pagos em cada combinação de dia e hora (hora do pedido na loja) · passe o mouse para ver o faturamento.</p></div>
+          <div class="tbl-wrap"><table class="dt hm-grid" id="gHeat"></table></div>
+        </div>
+        <div class="card" style="padding:0;margin-top:16px">
+          <div style="padding:14px 15px 4px"><h3>Vendas por produto</h3><p class="hint" style="margin:0">Pedidos que contêm o produto · unidades vendidas · % sobre o total de pedidos (todas as origens, no período filtrado). Clique no cabeçalho para ordenar.</p></div>
+          <div class="tbl-wrap" style="max-height:420px"><table class="dt" id="gProdAll"></table></div>
+        </div>
+
         <h2 class="sec-title full-only">Indicadores por dia</h2>
         <div class="funnel-charts full-only">
           <div class="card"><h3>CPM e CTR por dia</h3><p class="hint">CPM (R$, esq.) · CTR (%, dir.)</p><div class="chart-box chart-sm"><canvas id="gCpmCtr"></canvas></div></div>
           <div class="card"><h3>Taxas da página ao checkout</h3><p class="hint">Connect Rate = Views LP/Cliques · Tx Carrinho = Carrinhos/Views LP · Tx Checkout = Checkouts/Carrinhos</p><div class="chart-box chart-sm"><canvas id="gCrVis"></canvas></div></div>
           <div class="card"><h3>Tx Compra e Tx Conversão por dia</h3><p class="hint">Tx Compra = Vendas/Checkouts · Tx Conversão = Vendas/Views LP (Meta)</p><div class="chart-box chart-sm"><canvas id="gConv"></canvas></div></div>
-          <div class="card" style="padding:0"><div style="padding:14px 15px 4px"><h3>Vendas por produto</h3><p class="hint" style="margin:0" id="noteProdG"></p></div><div class="tbl-wrap" style="max-height:190px"><table class="dt" id="gProd"></table></div></div>
+          <div class="card" id="gProdCard" style="padding:0"><div style="padding:14px 15px 4px"><h3>Vendas por produto</h3><p class="hint" style="margin:0" id="noteProdG"></p></div><div class="tbl-wrap" style="max-height:190px"><table class="dt" id="gProd"></table></div></div>
         </div>
       </div>
 

@@ -72,6 +72,10 @@ DATE_MIN = ""
 # o cliente (Visão Geral + tabela de criativos), sem os demais dados. "" = não gera.
 CLIENT_PAGE_DIR = ""
 
+# OPCIONAL — gid de uma aba do Meta (mesma planilha) com gasto por hora
+# (detalhamento "Hour of day": Day · Hour · Amount Spent). Liga o ROAS por hora.
+GID_META_HOURLY = ""
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================

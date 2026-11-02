@@ -183,23 +183,23 @@ function destroy(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; }
 const FMT={brl:brl,pct:pct,num:numf,int:intf,roas:roasf};
 
 /* combo: Vendas (barras) · Gasto/Faturamento (R$) · ROAS (eixo próprio) */
-function comboChart(id, d){
+function comboChart(id, d, labels, noSpend){
   destroy(id); const el=document.getElementById(id); if(!el) return;
-  const labels=d.map(x=>x.d.slice(5)), mut=cmuted(), gr=cgrid();
+  labels=labels||d.map(x=>x.d.slice(5)); const mut=cmuted(), gr=cgrid();
   charts[id]=new Chart(el,{
     data:{labels, datasets:[
       {type:'bar',label:'Vendas',data:d.map(x=>x.vendas),backgroundColor:cvar('--chart-vendas'),yAxisID:'y',borderRadius:3,order:3},
       {type:'line',label:'Gasto',data:d.map(x=>+(x.sp*taxf()).toFixed(2)),borderColor:cvar('--chart-gasto'),backgroundColor:cvar('--chart-gasto'),yAxisID:'y1',borderWidth:2,pointRadius:2,tension:.25,order:2},
       {type:'line',label:'Faturamento',data:d.map(x=>+x.fat.toFixed(2)),borderColor:cvar('--chart-faturamento'),backgroundColor:cvar('--chart-faturamento'),yAxisID:'y1',borderWidth:2,pointRadius:2,tension:.25,order:2},
       {type:'line',label:'ROAS',data:d.map(x=>{const g=x.sp*taxf();return g?+(x.fat/g).toFixed(2):null;}),borderColor:cink(),backgroundColor:cink(),yAxisID:'y2',borderWidth:2,pointRadius:2,spanGaps:true,tension:.25,order:0},
-    ]},
+    ].filter(ds=>!(noSpend&&(ds.label==='Gasto'||ds.label==='ROAS')))},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:cink(),boxWidth:10,usePointStyle:true,font:{size:11}}},
         tooltip:{callbacks:{label:c=>{const v=c.raw,ax=c.dataset.yAxisID; return c.dataset.label+': '+(ax==='y1'?brl(v):ax==='y2'?roasf(v):intf(v));}}}},
       scales:{x:{ticks:{color:mut,font:{size:10}},grid:{display:false}},
         y:{position:'left',ticks:{color:mut,font:{size:10}},grid:{color:gr},beginAtZero:true,title:{display:true,text:'Vendas',color:mut,font:{size:10}}},
         y1:{position:'right',ticks:{color:mut,font:{size:10}},grid:{display:false},beginAtZero:true,title:{display:true,text:'R$',color:mut,font:{size:10}}},
-        y2:{position:'right',ticks:{color:mut,font:{size:10},callback:v=>numf(v)+'x'},grid:{display:false},beginAtZero:true,title:{display:true,text:'ROAS',color:mut,font:{size:10}}}}}
+        y2:{display:!noSpend,position:'right',ticks:{color:mut,font:{size:10},callback:v=>numf(v)+'x'},grid:{display:false},beginAtZero:true,title:{display:true,text:'ROAS',color:mut,font:{size:10}}}}}
   });
 }
 /* linhas genéricas (1 ou 2 eixos) */
@@ -299,12 +299,14 @@ function dailyCells(x,d,isTotal){
 /* e-commerce (ALL_MAIN): a coluna de produtos traz "1x Produto A | 2x Produto B";
    conta em quantos pedidos cada produto aparece e o % sobre o total de pedidos. */
 function renderProdTableEcom(id, salesSet){
-  const n=salesSet.length, byProd={};
+  const n=salesSet.length, byProd={}, units={};
   salesSet.forEach(r=>{ const seen=new Set();
-    String(r.prod||'').split('|').map(x=>x.trim().replace(/^\d+\s*x\s+/i,'')).filter(Boolean)
-      .forEach(p=>{ if(seen.has(p)) return; seen.add(p); byProd[p]=(byProd[p]||0)+1; }); });
-  const rows=Object.entries(byProd).sort((a,b)=>b[1]-a[1]).map(([prod,c])=>({k:prod, cells:{prod, vendas:c, pctm:n?c/n:null}}));
-  renderTable({id, cols:[{key:'prod',label:'Produto',type:'dim',big:true},{key:'vendas',label:'Pedidos',type:'int',w:80},{key:'pctm',label:'% dos pedidos',type:'pct',w:120}], rows});
+    String(r.prod||'').split('|').map(x=>x.trim()).filter(Boolean).forEach(item=>{
+      const mq=item.match(/^(\d+)\s*x\s+(.*)$/i), q=mq?+mq[1]:1, p=mq?mq[2].trim():item;
+      units[p]=(units[p]||0)+q;
+      if(seen.has(p)) return; seen.add(p); byProd[p]=(byProd[p]||0)+1; }); });
+  const rows=Object.entries(byProd).sort((a,b)=>b[1]-a[1]).map(([prod,c])=>({k:prod, cells:{prod, vendas:c, un:units[prod], pctm:n?c/n:null}}));
+  renderTable({id, cols:[{key:'prod',label:'Produto',type:'dim',big:true},{key:'vendas',label:'Pedidos',type:'int',w:80,heat:'fat'},{key:'un',label:'Unidades',type:'int',w:90},{key:'pctm',label:'% dos pedidos',type:'pct',w:120}], rows});
 }
 function renderProdTable(id, salesSet){
   if(ALL_MAIN) return renderProdTableEcom(id, salesSet);
@@ -398,6 +400,43 @@ function renderCreatives(id, fS, fM){
     {key:'vendas',label:'Vendas',type:'int'},{key:'roas',label:'ROAS',type:'roas',heat:'roas'}], rows, total:tot});
 }
 
+/* ---------------- Quando e o que vende (dia da semana · hora · produto) ----------------
+   Vendas/Faturamento = todos os pedidos pagos (como o funil da Visão Geral).
+   Gasto por dia da semana vem da aba Meta (por data); gasto por HORA só existe
+   se a aba horária do Meta estiver configurada (GID_META_HOURLY) -> ROAS por hora. */
+const META_H = DATA.meta_h || [];
+const WD_ORDER=[1,2,3,4,5,6,0];   // Seg..Dom
+const wdIdx=d=>{ const dt=new Date(d+'T00:00:00'); return isNaN(dt)?null:dt.getDay(); };
+function renderWhen(fS,fM){
+  /* dia da semana */
+  const W={}; WD_ORDER.forEach(i=>W[i]=newBucket());
+  fM.forEach(r=>{ const i=wdIdx(r.d); if(i!=null) W[i].sp+=r.sp; });
+  fS.forEach(r=>{ const i=wdIdx(r.d); if(i!=null) addSales(W[i],r); });
+  comboChart('gWeek', WD_ORDER.map(i=>W[i]), WD_ORDER.map(i=>WD[i]));
+  /* hora do dia */
+  const hasH = META_H.length>0;
+  const H=[...Array(24)].map(()=>newBucket());
+  fS.forEach(r=>{ if(r.h!=null&&r.h>=0&&r.h<24) addSales(H[r.h],r); });
+  if(hasH) META_H.forEach(r=>{ if(dateActive(r.d)&&r.h>=0&&r.h<24) H[r.h].sp+=r.sp; });
+  comboChart('gHour', H, H.map((x,i)=>String(i).padStart(2,'0')+'h'), !hasH);
+  document.getElementById('hourHint').innerHTML = hasH
+    ? 'Vendas (barras) · Gasto Meta e Faturamento (R$) · ROAS por hora — hora do pedido na loja.'
+    : 'Vendas (barras) · Faturamento (R$) por hora do pedido. <b>ROAS por hora</b>: aparece quando a aba de gasto por hora do Meta for conectada.';
+  /* mapa de calor dia × hora */
+  const M={}, F={}; let mx=0;
+  fS.forEach(r=>{ const i=wdIdx(r.d); if(i==null||r.h==null) return; const k=i+'_'+r.h;
+    M[k]=(M[k]||0)+r.main; F[k]=(F[k]||0)+r.val; mx=Math.max(mx,M[k]); });
+  const hs=[...Array(24).keys()];
+  let html='<thead><tr><th class="dim">Dia</th>'+hs.map(h=>`<th>${String(h).padStart(2,'0')}</th>`).join('')+'<th>Total</th></tr></thead><tbody>';
+  WD_ORDER.forEach(i=>{ let tot=0;
+    html+=`<tr><td class="dim">${WD[i]}</td>`+hs.map(h=>{ const v=M[i+'_'+h]||0; tot+=v;
+      return `<td style="background:${v?heat(v,0,mx,'fat'):'transparent'}" title="${WD[i]} ${String(h).padStart(2,'0')}h · ${intf(v)} pedido(s) · ${brl(F[i+'_'+h]||0)}">${v||''}</td>`; }).join('')+`<td><b>${intf(tot)}</b></td></tr>`; });
+  html+='</tbody><tfoot><tr><td class="dim">Total</td>'+hs.map(h=>{ let t=0; WD_ORDER.forEach(i=>t+=M[i+'_'+h]||0); return `<td>${t||''}</td>`; }).join('')+`<td>${intf(fS.reduce((s,r)=>s+(r.h!=null?r.main:0),0))}</td></tr></tfoot>`;
+  document.getElementById('gHeat').innerHTML=html;
+  /* produtos */
+  renderProdTableEcom('gProdAll', fS);
+}
+
 /* ---------------- PAGE 1: Visão Geral ---------------- */
 function renderGeral(){
   const fM=metaActive(), fS=salesActive();          // fS = todas as vendas do funil
@@ -411,6 +450,7 @@ function renderGeral(){
   renderProdTable('gProd', fS);
 
   if(CLIENT) renderCreatives('gCreat', fS.filter(s=>s.meta), fM);
+  renderWhen(fS, fM);
 
   const dl=dd.slice().reverse();
   renderTable({id:'gDaily', cols:DAILY_COLS,
@@ -895,6 +935,7 @@ document.getElementById('noteG').innerHTML = ALL_MAIN
 document.getElementById('noteM').innerHTML = ALL_MAIN
   ? `Considera <b>apenas pedidos atribuídos ao Meta Ads</b> (utm_campaign + anúncio = Campaign Name + Ad Name). Cada pedido pago = 1 venda; Faturamento = valor total do pedido.`
   : `Considera <b>apenas vendas atribuídas ao Meta Ads</b> (utm_campaign + anúncio = Campaign Name + Ad Name). <b>Vendas/Custo por Compra/Tx Compra/Ticket</b> = produto principal (${esc(MAIN_PRODUCT)}); <b>Faturamento/ROAS</b> = todos os produtos do funil (orderbumps/upsells).`;
+if(ALL_MAIN){ const pc=document.getElementById('gProdCard'); if(pc) pc.style.display='none'; }  /* substituída por "Vendas por produto" completa */
 document.getElementById('noteProdG').textContent = ALL_MAIN ? 'Pedidos que contêm cada produto · % sobre o total de pedidos' : MAIN_PRODUCT+' = 100% · demais em % (todas as vendas)';
 document.getElementById('noteProdM').textContent = ALL_MAIN ? 'Pedidos que contêm cada produto · só Meta Ads' : MAIN_PRODUCT+' = 100% · só Meta Ads';
 document.getElementById('updated').innerHTML='Última atualização:<br>'+B.generated_at_brt+' (BRT)';

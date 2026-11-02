@@ -81,6 +81,11 @@ DATE_MIN = "2026-11-01"
 # (Gasto, CPM, CTR, Hook Rate, Hold Rate, Retenção 75%, Vendas, ROAS), sem senha.
 CLIENT_PAGE_DIR = "cliente"
 
+# Aba do Meta com gasto por hora (Adveronix, detalhamento "Hour of day":
+# Day · Hour · Amount Spent), na mesma planilha do Meta. Preencha o gid quando
+# a aba existir para ligar o ROAS por hora. Vazio = só vendas/faturamento por hora.
+GID_META_HOURLY = ""
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================

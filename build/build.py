@@ -103,10 +103,14 @@ DATE_MIN = (getattr(cfg, "DATE_MIN", "") or "").strip()
 # Página enxuta para o CLIENTE (Visão Geral + tabela de criativos), publicada em
 # <saída>/<CLIENT_PAGE_DIR>/index.html. Vazio = não gera.
 CLIENT_PAGE_DIR = (getattr(cfg, "CLIENT_PAGE_DIR", "") or "").strip().strip("/")
+# OPCIONAL — aba do Meta com gasto por HORA (detalhamento "Hour of day" no
+# Adveronix: Day · Hour · Amount Spent). Habilita o ROAS por hora. Vazio = sem.
+GID_META_HOURLY = (getattr(cfg, "GID_META_HOURLY", "") or "").strip()
 
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
 META_CSV_URL = EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_META)
 SALES_CSV_URL = EXPORT_URL.format(sid=SPREADSHEET_ID_SALES, gid=GID_SALES)
+META_HOURLY_CSV_URL = EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_META_HOURLY) if GID_META_HOURLY else ""
 BRT = timezone(timedelta(hours=-3))   # horário de Brasília (exibição)
 
 
@@ -173,6 +177,16 @@ def parse_date(v: str) -> str | None:
         except ValueError:
             continue
     return None
+
+
+def parse_hour(v: str):
+    """'14:40', '14:40:55', '2026-11-01 14:40:55', '14:00:00 - 14:59:59', '14' -> 14."""
+    s = str(v or "").strip()
+    m = re.search(r"(?:^|\s|T)(\d{1,2}):\d{2}", s) or re.fullmatch(r"(\d{1,2})", s)
+    if not m:
+        return None
+    h = int(m.group(1))
+    return h if 0 <= h <= 23 else None
 
 
 def is_test_row(rowtext: str) -> bool:
@@ -325,6 +339,7 @@ def process(meta_rows, sales_rows):
          # Receita do funil = coluna "Faturamento" (Valor + orderbumps por comprador),
          # por isso "faturamento" vem ANTES de "valor" nos aliases.
          "val": ["faturamento", "valor da venda", "valor", "value", "amount"],
+         "hour": ["hora", "hour", "horario"],
          "utm_content": ["utm content", "utm_content"],
          "utm_term": ["utm term", "utm_term"],
          "utm_campaign": ["utm campaign", "utm_campaign"],
@@ -390,6 +405,7 @@ def process(meta_rows, sales_rows):
             "d": sday,
             "camp": camp, "adset": adset, "ad": ad,
             "prod": prod or "—",
+            "h": parse_hour(cell(row, sidx["hour"])),
             "val": round(to_float(cell(row, sidx["val"])), 2),
             "main": 1 if main else 0,
             # meta=1 quando a venda casa com campanha+anúncio real do Meta (tráfego
@@ -456,6 +472,33 @@ def load_briefings(path: str) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Gasto por hora (opcional) -> ROAS por hora
+# --------------------------------------------------------------------------- #
+def process_hourly(rows):
+    """Agrega a aba horária do Meta em [{d, h, sp}] (soma de todas as campanhas)."""
+    if not rows:
+        return []
+    idx = header_index(
+        rows[0],
+        {"day": ["day", "data", "date"],
+         "hour": ["hour of day", "time of day", "hourly stats", "hour", "hora"],
+         "spent": ["amount spent", "valor gasto", "gasto", "spend"]},
+        {},
+    )
+    if idx["day"] is None or idx["hour"] is None or idx["spent"] is None:
+        print("AVISO: aba de gasto por hora sem colunas Day/Hour/Amount Spent — ignorada.", file=sys.stderr)
+        return []
+    agg = {}
+    for row in rows[1:]:
+        d = parse_date(cell(row, idx["day"]))
+        h = parse_hour(cell(row, idx["hour"]))
+        if not d or h is None or (DATE_MIN and d < DATE_MIN):
+            continue
+        agg[(d, h)] = agg.get((d, h), 0.0) + to_float(cell(row, idx["spent"]))
+    return [{"d": d, "h": h, "sp": round(sp, 4)} for (d, h), sp in sorted(agg.items())]
+
+
+# --------------------------------------------------------------------------- #
 # Página do cliente — só os dados que a Visão Geral + criativos usam
 # --------------------------------------------------------------------------- #
 def client_data(data: dict) -> dict:
@@ -464,11 +507,12 @@ def client_data(data: dict) -> dict:
     pode ser visto nem pelo código-fonte da página."""
     b = dict(data["build"], client_mode=True, ia_worker_url="")
     meta = [{k: v for k, v in m.items() if k not in ("camp", "adset")} for m in data["meta"]]
-    sales = [{"d": s["d"], "ad": s["ad"] if s["meta"] else "", "val": s["val"],
-              "main": s["main"], "meta": s["meta"]} for s in data["sales"]]
+    sales = [{"d": s["d"], "h": s.get("h"), "prod": s["prod"], "ad": s["ad"] if s["meta"] else "",
+              "val": s["val"], "main": s["main"], "meta": s["meta"]} for s in data["sales"]]
     used_ads = {m["ad"] for m in meta}
     links = {k: v for k, v in data.get("ad_links", {}).items() if k in used_ads}
-    return {"build": b, "meta": meta, "sales": sales, "ad_links": links, "briefings": {}}
+    return {"build": b, "meta": meta, "sales": sales, "meta_h": data.get("meta_h", []),
+            "ad_links": links, "briefings": {}}
 
 
 # --------------------------------------------------------------------------- #
@@ -500,6 +544,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--meta-file")
     ap.add_argument("--sales-file")
+    ap.add_argument("--meta-hourly-file", help="CSV local da aba de gasto por hora (opcional)")
     ap.add_argument("--template", default="build/template.html")
     ap.add_argument("--out", default="dist/index.html")
     args = ap.parse_args()
@@ -507,6 +552,16 @@ def main():
     meta_rows = load_rows(META_CSV_URL, args.meta_file)
     sales_rows = load_rows(SALES_CSV_URL, args.sales_file)
     data = process(meta_rows, sales_rows)
+    hourly_rows = []
+    if args.meta_hourly_file:
+        hourly_rows = read_csv_file(args.meta_hourly_file)
+    elif META_HOURLY_CSV_URL:
+        try:
+            hourly_rows = fetch_csv(META_HOURLY_CSV_URL)
+        except Exception as e:  # aba opcional: nunca derruba o build
+            print(f"AVISO: não consegui ler a aba de gasto por hora ({e}).", file=sys.stderr)
+    data["meta_h"] = process_hourly(hourly_rows)
+    data["build"]["has_hourly_spend"] = bool(data["meta_h"])
 
     # Briefings do Gestor (texto por IA, gerado 1x/dia pela Routine) — lidos do
     # arquivo versionado ao lado do template. Sem chamada de API no build.
