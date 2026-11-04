@@ -212,6 +212,16 @@ Custo/Carrinho, Custo/Checkout e Custo/Compra** em vermelho (mais forte = mais c
 cada coluna com a própria escala, **p10–p90** (custos extremos de poucos eventos não
 achatam a cor). Configurado em `COST_HEAT_KEYS` no `build/app.js`.
 
+## Vendas por origem (Visão Geral — só na dashboard interna)
+
+Barras empilhadas de pedidos pagos por dia e por origem + tabela por origem (pedidos,
+%, faturamento, ticket) com o detalhe de `utm_source` dentro de cada uma. Origem = coluna
+`origem_detectada` da aba vendas (rótulos em `ORIGIN_LABELS` no `build/config.py`); se
+vazia, usa o `utm_source`, senão "Sem origem". Os campos `org`/`src` **não** vão para o
+HTML do cliente (`client_data()`). Verificado em 04/11: Meta 93 (meta-ads 71 ·
+FacebookAds 17 · sem UTM 4 · ig 1) · Sem rastreio 51 · Google Ads 49 · E-mail 9 ·
+Influenciador 7 · IG Shopping 1 · App Nuvemshop 1.
+
 ## Link do cliente (`/cliente/`)
 
 `CLIENT_PAGE_DIR = "cliente"` em `build/config.py` faz o `build.py` gerar também

@@ -96,6 +96,18 @@ CUSTOMER_HIST_FILE = "clientes_hist.enc"
 # (só aceita quando há um único par campanha+anúncio do Meta compatível).
 FUZZY_UTM_MATCH = True
 
+# Gráfico "Vendas por origem" (dashboard interna): rótulos da coluna
+# origem_detectada da aba vendas. O detalhe de utm_source aparece na tabela.
+ORIGIN_LABELS = {
+    "meta": "Meta Ads",
+    "google_ads": "Google Ads",
+    "email": "E-mail (Dinamize)",
+    "influenciador": "Influenciador",
+    "sem_rastreio": "Sem rastreio",
+    "igshopping": "Instagram Shopping",
+    "nube-app": "App Nuvemshop",
+}
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================

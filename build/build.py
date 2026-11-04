@@ -109,6 +109,9 @@ GID_META_HOURLY = (getattr(cfg, "GID_META_HOURLY", "") or "").strip()
 # OPCIONAL — base CIFRADA de clientes anteriores (build/gerar_clientes_hist.py),
 # decifrada com o Secret CLIENTES_KEY. Marca cada venda como novo/recorrente.
 CUSTOMER_HIST_FILE = (getattr(cfg, "CUSTOMER_HIST_FILE", "") or "").strip()
+# OPCIONAL — rótulos de exibição das origens de venda (coluna de origem da planilha
+# de compradores, ex.: origem_detectada). Origem sem rótulo aparece como veio.
+ORIGIN_LABELS = getattr(cfg, "ORIGIN_LABELS", {}) or {}
 # OPCIONAL — recupera vendas com UTM CORTADA (ex.: landing_url limitada a 255
 # caracteres em anúncios de catálogo): se o par exato campanha+anúncio não casa,
 # aceita um par do Meta que COMECE com o que chegou — só se o resultado for único.
@@ -228,6 +231,16 @@ def parse_hour(v: str):
         return None
     h = int(m.group(1))
     return h if 0 <= h <= 23 else None
+
+
+def origem_label(origin: str, source: str) -> str:
+    """Origem da venda para o gráfico: coluna de origem (rótulo via ORIGIN_LABELS),
+    senão o utm_source, senão "Sem origem"."""
+    o = (origin or "").strip()
+    if o:
+        return ORIGIN_LABELS.get(o, ORIGIN_LABELS.get(o.lower(), o))
+    s = (source or "").strip()
+    return ORIGIN_LABELS.get(s, s) if s else "Sem origem"
 
 
 def is_test_row(rowtext: str) -> bool:
@@ -394,7 +407,9 @@ def process(meta_rows, sales_rows):
          "utm_campaign": ["utm campaign", "utm_campaign"],
          "utm_medium": ["utm medium", "utm_medium"],
          "status": ["status"],
-         "customer": ["cliente_id", "customer id", "id do cliente"]}
+         "customer": ["cliente_id", "customer id", "id do cliente"],
+         "source": ["utm_source", "utm source"],
+         "origin": ["origem_detectada", "origem detectada", "origem"]}
     sfallback = {"created": 3, "name": 1, "email": 2, "prod": 0, "val": 6}
     # Overrides do cliente (build/config.py -> SALES_COLUMNS): lista de nomes
     # de coluna; lista vazia = coluna inexistente (sem fallback posicional).
@@ -498,6 +513,9 @@ def process(meta_rows, sales_rows):
             "h": parse_hour(cell(row, sidx["hour"])),
             # 1 = recorrente · 0 = novo · None = sem base/sem cliente_id
             "nr": novo_ou_recorrente(row, sday),
+            # origem da venda (só dashboard interna; não vai para a página do cliente)
+            "org": origem_label(cell(row, sidx["origin"]), cell(row, sidx["source"])),
+            "src": cell(row, sidx["source"]),
             "val": round(to_float(cell(row, sidx["val"])), 2),
             "main": 1 if main else 0,
             # meta=1 quando a venda casa com campanha+anúncio real do Meta (tráfego
@@ -527,6 +545,7 @@ def process(meta_rows, sales_rows):
             "has_atc": midx["atc"] is not None,
             "has_video": midx["v3"] is not None,
             "has_customer_hist": hist_keys is not None,
+            "has_origin": sidx.get("origin") is not None or sidx.get("source") is not None,
             "client_mode": False,
             "ia_worker_url": IA_WORKER_URL,
             # Metas da aba Relatórios (código de cor de CAC/ROAS)

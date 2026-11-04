@@ -84,6 +84,10 @@ CUSTOMER_HIST_FILE = ""
 # campanha+anúncio do Meta compatível é único). Útil em anúncios de catálogo.
 FUZZY_UTM_MATCH = False
 
+# OPCIONAL — rótulos das origens de venda (coluna de origem da planilha de
+# compradores, ex.: {"meta": "Meta Ads", "google_ads": "Google Ads"}).
+ORIGIN_LABELS = {}
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================

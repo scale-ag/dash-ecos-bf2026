@@ -477,6 +477,31 @@ function renderNovosRecorrentes(fS){
         y1:{position:'right',min:0,max:1,ticks:{color:mut,font:{size:10},callback:v=>pct(v)},grid:{display:false}}}}});
 }
 
+/* ---------------- Vendas por origem (só dashboard interna) ---------------- */
+function renderOrigens(fS){
+  const sec=document.getElementById('orgSection'); if(!sec) return;
+  if(CLIENT||!B.has_origin){ sec.style.display='none'; return; }
+  const O={}, days={}, tot={q:0,f:0};
+  fS.forEach(s=>{ const o=s.org||'Sem origem', src=s.src||'(sem utm_source)';
+    const a=O[o]||(O[o]={q:0,f:0,src:{}}); a.q+=s.main; a.f+=s.val; tot.q+=s.main; tot.f+=s.val;
+    const b=a.src[src]||(a.src[src]={q:0,f:0}); b.q+=s.main; b.f+=s.val;
+    if(s.d){ const d=days[s.d]||(days[s.d]={}); d[o]=(d[o]||0)+s.main; } });
+  const orgs=Object.keys(O).sort((x,y)=>O[y].q-O[x].q), ks=Object.keys(days).sort(), PAL=chartPalette(), mut=cmuted();
+  destroy('gOrg'); const el=document.getElementById('gOrg');
+  if(el) charts['gOrg']=new Chart(el,{type:'bar',data:{labels:ks.map(d=>d.slice(5)),datasets:orgs.map((o,i)=>({label:o,data:ks.map(d=>days[d][o]||0),backgroundColor:PAL[i%PAL.length],stack:'o',borderRadius:2}))},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:cink(),boxWidth:10,usePointStyle:true,font:{size:11}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+intf(c.raw)}}},
+      scales:{x:{stacked:true,ticks:{color:mut,font:{size:10}},grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{color:mut,font:{size:10}},grid:{color:cgrid()},title:{display:true,text:'Pedidos',color:mut,font:{size:10}}}}}});
+  let h='<thead><tr><th class="dim">Origem</th><th>Pedidos</th><th>%</th><th>Faturamento</th><th>Ticket</th></tr></thead><tbody>';
+  orgs.forEach(o=>{ const a=O[o];
+    h+=`<tr><td class="dim"><b>${esc(o)}</b></td><td><b>${intf(a.q)}</b></td><td>${pct(tot.q?a.q/tot.q:null)}</td><td>${brl(a.f)}</td><td>${brl(a.q?a.f/a.q:null)}</td></tr>`;
+    const subs=Object.entries(a.src).sort((x,y)=>y[1].q-x[1].q);
+    if(subs.length>1||(subs[0]&&subs[0][0]!=='(sem utm_source)')) subs.forEach(([src,b])=>{
+      h+=`<tr style="color:var(--muted)"><td class="dim" style="padding-left:26px">↳ ${esc(src)}</td><td>${intf(b.q)}</td><td>${pct(tot.q?b.q/tot.q:null)}</td><td>${brl(b.f)}</td><td>${brl(b.q?b.f/b.q:null)}</td></tr>`; }); });
+  h+=`</tbody><tfoot><tr><td class="dim">Total</td><td>${intf(tot.q)}</td><td>${pct(tot.q?1:null)}</td><td>${brl(tot.f)}</td><td>${brl(tot.q?tot.f/tot.q:null)}</td></tr></tfoot>`;
+  document.getElementById('gOrgTbl').innerHTML=h;
+}
+
 /* ---------------- PAGE 1: Visão Geral ---------------- */
 function renderGeral(){
   const fM=metaActive(), fS=salesActive();          // fS = todas as vendas do funil
@@ -490,6 +515,7 @@ function renderGeral(){
   renderProdTable('gProd', fS);
 
   if(CLIENT) renderCreatives('gCreat', fS.filter(s=>s.meta), fM);
+  renderOrigens(fS);
   renderNovosRecorrentes(fS);
   renderWhen(fS, fM);
 

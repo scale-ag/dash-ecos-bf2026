@@ -89,6 +89,15 @@
           </div>
         </div>
 
+        <div id="orgSection" class="full-only">
+          <h2 class="sec-title">Vendas por origem</h2>
+          <div class="grid when-grid">
+            <div class="card"><h3>Pedidos por origem por dia</h3><p class="hint">Pedidos pagos de todas as origens, empilhados por dia.</p><div class="chart-box"><canvas id="gOrg"></canvas></div></div>
+            <div class="card" style="padding:0"><div style="padding:14px 15px 4px"><h3>Resumo por origem</h3><p class="hint" style="margin:0">Origem (coluna origem_detectada) · em cinza, o detalhe por utm_source.</p></div>
+              <div class="tbl-wrap" style="max-height:300px"><table class="dt" id="gOrgTbl"></table></div></div>
+          </div>
+        </div>
+
         <div id="nrSection">
           <h2 class="sec-title">Clientes novos × recorrentes</h2>
           <div class="grid funnel-grid">
