@@ -335,6 +335,10 @@ def process(meta_rows, sales_rows):
     # do Meta também alinha a venda à mesma linha do gasto nas tabelas.
     ad_map = {}
     ad_names = {}   # mesma chave -> Ad Name original (com acento/caixa) do Meta
+    # mesma chave -> conjuntos reais do Meta em que esse anúncio roda. O mesmo
+    # anúncio pode estar em VÁRIOS conjuntos (ex.: catálogo em 7d/180d/365d); aí o
+    # conjunto da venda sai do utm_medium (nome do conjunto), não do 1º encontrado.
+    ad_adsets = {}
     # Anúncio (nome, ex. "AD01") -> 1 permalink do Instagram. "Qualquer um
     # correlato" ao anúncio serve (o mesmo criativo pode rodar em várias
     # campanhas); guardamos o primeiro link não-vazio encontrado.
@@ -354,6 +358,8 @@ def process(meta_rows, sales_rows):
         if key not in ad_map:
             ad_map[key] = (camp, adset)
             ad_names[key] = ad
+        if adset not in ad_adsets.setdefault(key, []):
+            ad_adsets[key].append(adset)
         link = cell(row, midx["link"])
         if link and ad not in ad_links:
             ad_links[ad] = link
@@ -459,11 +465,20 @@ def process(meta_rows, sales_rows):
         # entre campanhas; casar só pelo anúncio atribui a venda à campanha errada).
         meta_key = (norm(sale_camp), norm(ad))
         meta_hit = ad_map.get(meta_key)
+        hit_key = meta_key if meta_hit is not None else None
         if meta_hit is None and FUZZY_UTM_MATCH:
             fk = fuzzy_meta_pair(ad_map, cell(row, sidx["utm_campaign"]), cell(row, sidx[AD_UTM_COLUMN]))
             if fk is not None:
                 meta_hit = ad_map[fk]
+                hit_key = fk
                 ad = ad_names[fk]     # nome real do anúncio no Meta (criativos/tabelas)
+        if hit_key is not None and len(ad_adsets.get(hit_key, [])) > 1:
+            # anúncio em vários conjuntos: escolhe pelo utm_medium (exato, senão
+            # prefixo único — o "&" de "h&m" sem codificar corta em "auto_h").
+            med = norm(cell(row, sidx["utm_medium"]))
+            opts = ad_adsets[hit_key]
+            pick = [a for a in opts if norm(a) == med] or ([a for a in opts if med and norm(a).startswith(med)])
+            meta_hit = (meta_hit[0], pick[0] if len(pick) == 1 else "(conjunto não identificado)")
         # Atribuição ao tráfego rastreado: produto principal OU par campanha+anúncio
         # que existe no Meta (captura orderbumps/upsells que carregam a UTM do anúncio).
         attributed = main or (meta_hit is not None)

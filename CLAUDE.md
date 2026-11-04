@@ -131,6 +131,10 @@ Verificado em 02/11/2026:
   codificar e corta o `utm_medium` em `auto_h`. `FUZZY_UTM_MATCH = True` recupera essas
   vendas por prefixo (par campanha+anúncio único no Meta): catálogo 6 → 17 vendas.
   Correção na origem: parâmetros de URL curtos no Meta, sem `&`/acento nos nomes.
+- **Mesmo anúncio em vários conjuntos (catálogo: 7d/180d/365d):** o conjunto da venda sai
+  do `utm_medium` (exato ou prefixo único); se não der para saber (ex.: `auto_h`), a venda
+  vai para "(conjunto não identificado)" em vez de inflar um conjunto. Verificado em
+  04/11: 365d 8 · 7d 3 · 180d 3 · não identificado 3.
 - **Status:** usar `status_pagamento` (paid/pending/voided/refunded), **não** a
   coluna `status` (open/closed/cancelled = status do pedido).
 - **Histórico:** a aba `vendas` traz pedidos desde 2024; `DATE_MIN = "2026-11-01"`
