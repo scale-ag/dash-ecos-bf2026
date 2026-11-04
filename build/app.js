@@ -381,23 +381,25 @@ function convCharts(id1,id2,id3,dd){
    Agrega por Ad Name (o mesmo criativo em campanhas diferentes soma junto).
    Hook = 3s/Impressões (só linhas com vídeo) · Hold = ThruPlays/3s · Ret75 = p75/3s. */
 function renderCreatives(id, fS, fM){
-  const m={}; const g=k=>m[k]||(m[k]={sp:0,im:0,cl:0,imv:0,v3:0,thru:0,p75:0,vendas:0,fat:0});
+  const m={}; const g=k=>m[k]||(m[k]={sp:0,im:0,cl:0,imv:0,v3:0,thru:0,p75:0,vendas:0,fat:0,nv:0,rc:0});
   fM.forEach(r=>{ const a=g(r.ad); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl;
     if(r.v3){ a.imv+=r.im; a.v3+=r.v3; a.thru+=(r.thru||0); a.p75+=(r.p75||0); } });
-  fS.forEach(r=>{ if(!r.ad) return; const a=g(r.ad); a.vendas+=r.main; a.fat+=r.val; });
+  fS.forEach(r=>{ if(!r.ad) return; const a=g(r.ad); a.vendas+=r.main; a.fat+=r.val;
+    if(r.nr===0) a.nv+=r.main; else if(r.nr===1) a.rc+=r.main; });
   const cells=(name,a)=>{ const gs=a.sp*taxf();
     return {ad:name, link:(DATA.ad_links||{})[name]||'', gasto:gs, cpm:a.im?gs/a.im*1000:null, ctr:a.im?a.cl/a.im:null,
       hook:a.imv?a.v3/a.imv:null, hold:a.v3?a.thru/a.v3:null, ret75:a.v3?a.p75/a.v3:null,
-      vendas:a.vendas, roas:gs?a.fat/gs:null}; };
+      vendas:a.vendas, nv:a.nv, rc:a.rc, roas:gs?a.fat/gs:null}; };
   const rows=Object.entries(m).filter(([n,a])=>a.sp>0||a.vendas>0).sort((x,y)=>y[1].sp-x[1].sp)
     .map(([n,a])=>({k:n, cells:cells(n,a)}));
-  const T={sp:0,im:0,cl:0,imv:0,v3:0,thru:0,p75:0,vendas:0,fat:0};
+  const T={sp:0,im:0,cl:0,imv:0,v3:0,thru:0,p75:0,vendas:0,fat:0,nv:0,rc:0};
   Object.values(m).forEach(a=>Object.keys(T).forEach(k=>T[k]+=a[k]));
   const tot=cells(null,T); tot.link='';
   renderTable({id, cols:[{key:'ad',label:'Criativo',type:'dim',big:true},{key:'link',label:'Ver',type:'link',w:70},
     {key:'gasto',label:'Gasto',type:'brl',heat:'gasto',w:110},{key:'cpm',label:'CPM',type:'brl'},{key:'ctr',label:'CTR',type:'pct'},
     {key:'hook',label:'Hook Rate',type:'pct',w:96},{key:'hold',label:'Hold Rate',type:'pct',w:96},{key:'ret75',label:'Retenção 75%',type:'pct',w:110},
-    {key:'vendas',label:'Vendas',type:'int'},{key:'roas',label:'ROAS',type:'roas',heat:'roas'}], rows, total:tot});
+    {key:'vendas',label:'Vendas',type:'int'}].concat(HAS_NR?[{key:'nv',label:'Novos',type:'int',w:80},{key:'rc',label:'Recorrentes',type:'int',w:100}]:[])
+    .concat([{key:'roas',label:'ROAS',type:'roas',heat:'roas'}]), rows, total:tot});
 }
 
 /* ---------------- Quando e o que vende (dia da semana · hora · produto) ----------------
