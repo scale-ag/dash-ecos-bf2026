@@ -107,7 +107,10 @@ function renderTable(cfg){
       va=(va==null||!isFinite(va))?-Infinity:va; vb=(vb==null||!isFinite(vb))?-Infinity:vb;
       return dir==='asc'?va-vb:vb-va; }); }
   const ext={};
-  cfg.cols.forEach(c=>{ if(c.heat){ const vs=rows.map(r=>r.cells[c.key]).filter(v=>v!=null&&isFinite(v)); ext[c.key]=[Math.min(...vs),Math.max(...vs)]; }});
+  cfg.cols.forEach(c=>{ if(c.heat){ const vs=rows.map(r=>r.cells[c.key]).filter(v=>v!=null&&isFinite(v));
+    if(c.heat==='cost' && vs.length>=5){ const so=vs.slice().sort((a,b)=>a-b), q=p=>so[Math.min(so.length-1,Math.max(0,Math.round(p*(so.length-1))))];
+      ext[c.key]=[q(0.1),q(0.9)]; }   /* custos: escala p10–p90 (outliers de 1 venda não achatam a cor) */
+    else ext[c.key]=[Math.min(...vs),Math.max(...vs)]; }});
   const fmt=(t,v)=> t==='link'?(v?`<a class="cr-link" href="${esc(v)}" target="_blank" rel="noopener">Abrir ▸</a>`:'—'):t==='brl'?brl(v):t==='pct'?pct(v):t==='int'?intf(v):t==='num'?numf(v):t==='roas'?roasf(v):t==='date'?brdate(v):dimf(v);
   const widths=cfg.cols.map(c=>colWidth(cfg,c)); const totalW=widths.reduce((a,b)=>a+b,0);
   const colgroup='<colgroup>'+cfg.cols.map((c,i)=>`<col style="width:${widths[i]}px">`).join('')+'</colgroup>';
@@ -160,7 +163,7 @@ function renderTable(cfg){
 }
 /* Heatmap por coluna: cor FIXA por métrica (definida em identidade-visual.css),
    só a OPACIDADE varia com o valor (maior valor = mais vibrante). */
-const HEAT_HUE={gasto:'--heat-gasto', fat:'--heat-fat', roas:'--heat-roas'};
+const HEAT_HUE={gasto:'--heat-gasto', fat:'--heat-fat', roas:'--heat-roas', cost:'--heat-gasto'};
 function heat(v,lo,hi,kind){
   if(v==null||!isFinite(v)||hi===lo||!HEAT_HUE[kind]) return 'transparent';
   const t=Math.max(0,Math.min(1,(v-lo)/(hi-lo)));
@@ -283,6 +286,9 @@ const METRIC_COLS=[
   {key:'ticket',label:'Ticket',type:'brl'},
   {key:'roas',label:'ROAS',type:'roas',heat:'roas'},      /* heatmap amarelo */
 ].filter(c=>HAS_ATC||!c.atc);
+/* mapa de calor de CUSTO (vermelho = mais caro) — tabelas da aba Meta Ads */
+const COST_HEAT_KEYS={cpm:1,cpv:1,cpatc:1,cpic:1,cac:1};
+const costHeat=cols=>cols.map(c=>COST_HEAT_KEYS[c.key]?{...c,heat:'cost'}:c);
 const DAILY_COLS=[{key:'date',label:'Data',type:'date'},{key:'wd',label:'Dia',type:'dim',w:64}].concat(METRIC_COLS);
 const HCOLS=[{key:'dim',label:'',type:'dim',big:true}].concat(METRIC_COLS.map(c=>{const o={...c}; delete o.heat; return o;}));
 function metricCells(x,d){
@@ -531,7 +537,7 @@ function renderMeta(){
   renderProdTable('mProd', fS);
 
   const dl=dd.slice().reverse();
-  renderTable({id:'tDaily', cols:DAILY_COLS,
+  renderTable({id:'tDaily', cols:costHeat(DAILY_COLS),
     rows:dl.map(x=>{const dv=derive(x); return {k:x.d, cells:dailyCells(x,dv)};}),
     total:dailyCells(t,d,true),
     selectable:true, selSet:STATE.selDays,
@@ -542,11 +548,11 @@ function renderMeta(){
     return {k, cells:Object.assign({dim:k}, metricCells(a,dv))};}); }
   function totRowOf(tt){const dv=derive(tt);return Object.assign({dim:null}, metricCells(tt,dv));}
   const Sc=metaScope('C'), Sa=metaScope('A'), Sd=metaScope('D');
-  renderTable({id:'tCamp', cols:HCOLS.map((c,i)=>i===0?{...c,label:'Campanha'}:c), rows:hierRows(buildAgg(Sc.fS,Sc.fM,'camp')), total:totRowOf(totals(Sc.fS,Sc.fM)),
+  renderTable({id:'tCamp', cols:costHeat(HCOLS.map((c,i)=>i===0?{...c,label:'Campanha'}:c)), rows:hierRows(buildAgg(Sc.fS,Sc.fM,'camp')), total:totRowOf(totals(Sc.fS,Sc.fM)),
     selectable:true, selSet:STATE.mSelC, onSelect:(k,e)=>selDim('C',k,e&&(e.ctrlKey||e.metaKey))});
-  renderTable({id:'tAdset', cols:HCOLS.map((c,i)=>i===0?{...c,label:'Conjunto',big:true}:c), rows:hierRows(buildAgg(Sa.fS,Sa.fM,'adset')), total:totRowOf(totals(Sa.fS,Sa.fM)),
+  renderTable({id:'tAdset', cols:costHeat(HCOLS.map((c,i)=>i===0?{...c,label:'Conjunto',big:true}:c)), rows:hierRows(buildAgg(Sa.fS,Sa.fM,'adset')), total:totRowOf(totals(Sa.fS,Sa.fM)),
     selectable:true, selSet:STATE.mSelA, onSelect:(k,e)=>selDim('A',k,e&&(e.ctrlKey||e.metaKey))});
-  renderTable({id:'tAd', cols:HCOLS.map((c,i)=>i===0?{...c,label:'Anúncio'}:c), rows:hierRows(buildAgg(Sd.fS,Sd.fM,'ad')), total:totRowOf(totals(Sd.fS,Sd.fM)),
+  renderTable({id:'tAd', cols:costHeat(HCOLS.map((c,i)=>i===0?{...c,label:'Anúncio'}:c)), rows:hierRows(buildAgg(Sd.fS,Sd.fM,'ad')), total:totRowOf(totals(Sd.fS,Sd.fM)),
     selectable:true, selSet:STATE.mSelAd, onSelect:(k,e)=>selDim('D',k,e&&(e.ctrlKey||e.metaKey))});
 
   /* cada gráfico segue a dimensão da tabela acima (mesmos dados escopados) */

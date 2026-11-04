@@ -205,6 +205,13 @@ O match com o Meta (campo `meta`, usado pela aba Meta Ads) exige `utm_campaign` 
 a coluna de `AD_UTM_COLUMN` batendo com uma linha real do Meta; quando casa, a venda
 herda a campanha/conjunto reais do Meta (para o gasto e a venda caírem na mesma linha
 das tabelas).
+## Mapa de calor de custos (aba Meta Ads — só na dashboard interna)
+
+Tabelas por dia, campanha, conjunto e anúncio da aba Meta Ads: colunas **CPM, Custo/View,
+Custo/Carrinho, Custo/Checkout e Custo/Compra** em vermelho (mais forte = mais caro),
+cada coluna com a própria escala, **p10–p90** (custos extremos de poucos eventos não
+achatam a cor). Configurado em `COST_HEAT_KEYS` no `build/app.js`.
+
 ## Link do cliente (`/cliente/`)
 
 `CLIENT_PAGE_DIR = "cliente"` em `build/config.py` faz o `build.py` gerar também
