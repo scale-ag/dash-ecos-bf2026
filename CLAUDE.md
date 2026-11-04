@@ -124,6 +124,13 @@ Verificado em 02/11/2026:
 - **Catálogo:** nas vendas da campanha `..._catalogo` o `utm_content` chega truncado
   ("CATÁLOGO", "CA", "C"...) e só parte delas casa com o Ad Name
   `CATÁLOGO ALL PRODUCTS` — essas vendas aparecem no Total, mas nem todas na aba Meta Ads.
+- **UTM cortada no catálogo (verificado em 04/11/2026):** a `landing_url` dos pedidos é
+  gravada com no máximo **255 caracteres**; anúncios de catálogo caem na página do
+  produto (URL longa) e as UTMs no fim chegam truncadas (`utm_campaign=zenith_ecom`,
+  `utm_content=CATÁ`...). Além disso o `&` de `auto_h&m_...` às vezes chega sem
+  codificar e corta o `utm_medium` em `auto_h`. `FUZZY_UTM_MATCH = True` recupera essas
+  vendas por prefixo (par campanha+anúncio único no Meta): catálogo 6 → 17 vendas.
+  Correção na origem: parâmetros de URL curtos no Meta, sem `&`/acento nos nomes.
 - **Status:** usar `status_pagamento` (paid/pending/voided/refunded), **não** a
   coluna `status` (open/closed/cancelled = status do pedido).
 - **Histórico:** a aba `vendas` traz pedidos desde 2024; `DATE_MIN = "2026-11-01"`

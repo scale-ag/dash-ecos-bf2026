@@ -109,6 +109,22 @@ GID_META_HOURLY = (getattr(cfg, "GID_META_HOURLY", "") or "").strip()
 # OPCIONAL — base CIFRADA de clientes anteriores (build/gerar_clientes_hist.py),
 # decifrada com o Secret CLIENTES_KEY. Marca cada venda como novo/recorrente.
 CUSTOMER_HIST_FILE = (getattr(cfg, "CUSTOMER_HIST_FILE", "") or "").strip()
+# OPCIONAL — recupera vendas com UTM CORTADA (ex.: landing_url limitada a 255
+# caracteres em anúncios de catálogo): se o par exato campanha+anúncio não casa,
+# aceita um par do Meta que COMECE com o que chegou — só se o resultado for único.
+FUZZY_UTM_MATCH = bool(getattr(cfg, "FUZZY_UTM_MATCH", False))
+FUZZY_MIN_CAMP = 8   # mínimo de caracteres de utm_campaign para tentar
+
+
+def fuzzy_meta_pair(ad_map, sale_camp_raw: str, ad_raw: str):
+    """(camp_norm, ad_norm) único do Meta compatível com UTMs truncadas, ou None.
+    Campanha: a do Meta começa com a recebida. Anúncio: um começa com o outro
+    (cobre "CATÁ" -> "CATÁLOGO ALL PRODUCTS" e "..._Group_1" do catálogo); vazio = qualquer."""
+    nc, na = norm(sale_camp_raw), norm(ad_raw)
+    if len(nc) < FUZZY_MIN_CAMP:
+        return None
+    cands = [k for k in ad_map if k[0].startswith(nc) and (not na or k[1].startswith(na) or na.startswith(k[1]))]
+    return cands[0] if len(cands) == 1 else None
 
 
 def load_customer_hist():
@@ -318,6 +334,7 @@ def process(meta_rows, sales_rows):
     # venda à campanha errada. Guardar os nomes
     # do Meta também alinha a venda à mesma linha do gasto nas tabelas.
     ad_map = {}
+    ad_names = {}   # mesma chave -> Ad Name original (com acento/caixa) do Meta
     # Anúncio (nome, ex. "AD01") -> 1 permalink do Instagram. "Qualquer um
     # correlato" ao anúncio serve (o mesmo criativo pode rodar em várias
     # campanhas); guardamos o primeiro link não-vazio encontrado.
@@ -336,6 +353,7 @@ def process(meta_rows, sales_rows):
         key = (norm(camp), norm(ad))
         if key not in ad_map:
             ad_map[key] = (camp, adset)
+            ad_names[key] = ad
         link = cell(row, midx["link"])
         if link and ad not in ad_links:
             ad_links[ad] = link
@@ -441,6 +459,11 @@ def process(meta_rows, sales_rows):
         # entre campanhas; casar só pelo anúncio atribui a venda à campanha errada).
         meta_key = (norm(sale_camp), norm(ad))
         meta_hit = ad_map.get(meta_key)
+        if meta_hit is None and FUZZY_UTM_MATCH:
+            fk = fuzzy_meta_pair(ad_map, cell(row, sidx["utm_campaign"]), cell(row, sidx[AD_UTM_COLUMN]))
+            if fk is not None:
+                meta_hit = ad_map[fk]
+                ad = ad_names[fk]     # nome real do anúncio no Meta (criativos/tabelas)
         # Atribuição ao tráfego rastreado: produto principal OU par campanha+anúncio
         # que existe no Meta (captura orderbumps/upsells que carregam a UTM do anúncio).
         attributed = main or (meta_hit is not None)

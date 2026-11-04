@@ -80,6 +80,10 @@ GID_META_HOURLY = ""
 # decifrada com o Secret CLIENTES_KEY. Liga o gráfico Clientes novos × recorrentes.
 CUSTOMER_HIST_FILE = ""
 
+# OPCIONAL — casa vendas com UTM truncada por prefixo (só quando o par
+# campanha+anúncio do Meta compatível é único). Útil em anúncios de catálogo.
+FUZZY_UTM_MATCH = False
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================

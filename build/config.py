@@ -91,6 +91,11 @@ GID_META_HOURLY = ""
 # CLIENTES_KEY -> gráfico Clientes novos × recorrentes. Sem a chave, o gráfico some.
 CUSTOMER_HIST_FILE = "clientes_hist.enc"
 
+# Vendas do catálogo chegam com UTM cortada (landing_url gravada com no máx. 255
+# caracteres: URL de produto longa + UTMs no fim). Liga o casamento por prefixo
+# (só aceita quando há um único par campanha+anúncio do Meta compatível).
+FUZZY_UTM_MATCH = True
+
 # ==========================================================================
 # 3) RÓTULOS EXIBIDOS NA INTERFACE
 # ==========================================================================
