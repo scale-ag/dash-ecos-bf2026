@@ -262,6 +262,8 @@ Seção abaixo do funil, seguindo o filtro de período (dados a partir de 01/11/
 - **Vendas por produto**: pedidos que contêm o produto, unidades (do "2x" em
   `produtos`) e % dos pedidos. Não há faturamento por produto: a planilha só traz o
   total do pedido.
+- **Produtos mais vendidos para clientes novos** (logo abaixo): mesmo ranking, só com
+  pedidos de clientes novos (`nr = 0`); some se a base de clientes (`CLIENTES_KEY`) faltar.
 Vendas/Faturamento aqui = todos os pedidos pagos (todas as origens), como no funil.
 
 ## IA Insights

@@ -304,7 +304,7 @@ function dailyCells(x,d,isTotal){
 /* ---------------- tabela Vendas por produto ---------------- */
 /* e-commerce (ALL_MAIN): a coluna de produtos traz "1x Produto A | 2x Produto B";
    conta em quantos pedidos cada produto aparece e o % sobre o total de pedidos. */
-function renderProdTableEcom(id, salesSet){
+function renderProdTableEcom(id, salesSet, pctLabel){
   const n=salesSet.length, byProd={}, units={};
   salesSet.forEach(r=>{ const seen=new Set();
     String(r.prod||'').split('|').map(x=>x.trim()).filter(Boolean).forEach(item=>{
@@ -312,7 +312,7 @@ function renderProdTableEcom(id, salesSet){
       units[p]=(units[p]||0)+q;
       if(seen.has(p)) return; seen.add(p); byProd[p]=(byProd[p]||0)+1; }); });
   const rows=Object.entries(byProd).sort((a,b)=>b[1]-a[1]).map(([prod,c])=>({k:prod, cells:{prod, vendas:c, un:units[prod], pctm:n?c/n:null}}));
-  renderTable({id, cols:[{key:'prod',label:'Produto',type:'dim',big:true},{key:'vendas',label:'Pedidos',type:'int',w:80,heat:'fat'},{key:'un',label:'Unidades',type:'int',w:90},{key:'pctm',label:'% dos pedidos',type:'pct',w:120}], rows});
+  renderTable({id, cols:[{key:'prod',label:'Produto',type:'dim',big:true},{key:'vendas',label:'Pedidos',type:'int',w:80,heat:'fat'},{key:'un',label:'Unidades',type:'int',w:90},{key:'pctm',label:pctLabel||'% dos pedidos',type:'pct',w:pctLabel?170:120}], rows});
 }
 function renderProdTable(id, salesSet){
   if(ALL_MAIN) return renderProdTableEcom(id, salesSet);
@@ -441,8 +441,11 @@ function renderWhen(fS,fM){
       return `<td style="background:${v?heat(v,0,mx,'fat'):'transparent'}" title="${WD[i]} ${String(h).padStart(2,'0')}h · ${intf(v)} pedido(s) · ${brl(F[i+'_'+h]||0)}">${v||''}</td>`; }).join('')+`<td><b>${intf(tot)}</b></td></tr>`; });
   html+='</tbody><tfoot><tr><td class="dim">Total</td>'+hs.map(h=>{ let t=0; WD_ORDER.forEach(i=>t+=M[i+'_'+h]||0); return `<td>${t||''}</td>`; }).join('')+`<td>${intf(fS.reduce((s,r)=>s+(r.h!=null?r.main:0),0))}</td></tr></tfoot>`;
   document.getElementById('gHeat').innerHTML=html;
-  /* produtos */
+  /* produtos (todos os pedidos) + ranking só de clientes novos */
   renderProdTableEcom('gProdAll', fS);
+  const pn=document.getElementById('gProdNewCard');
+  if(pn){ pn.style.display = HAS_NR ? '' : 'none';
+    if(HAS_NR) renderProdTableEcom('gProdNew', fS.filter(s=>s.nr===0), '% dos pedidos de novos'); }
 }
 
 /* ---------------- Clientes novos × recorrentes ----------------
