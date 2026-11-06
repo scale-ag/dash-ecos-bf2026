@@ -79,6 +79,8 @@ GID_META_HOURLY = ""
 # OPCIONAL — base cifrada de clientes anteriores (build/gerar_clientes_hist.py),
 # decifrada com o Secret CLIENTES_KEY. Liga o gráfico Clientes novos × recorrentes.
 CUSTOMER_HIST_FILE = ""
+# OPCIONAL — ranking histórico de produtos cifrado (mesma chave), aba Insights.
+PRODUCT_HIST_FILE = ""
 
 # OPCIONAL — casa vendas com UTM truncada por prefixo (só quando o par
 # campanha+anúncio do Meta compatível é único). Útil em anúncios de catálogo.

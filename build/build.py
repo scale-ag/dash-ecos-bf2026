@@ -151,6 +151,26 @@ def load_customer_hist():
         return None, None
     return set(obj.get("chaves", [])), {k: obj.get(k) for k in ("de", "ate", "clientes")}
 
+# OPCIONAL — ranking histórico de produtos CIFRADO (mesma chave CLIENTES_KEY),
+# gerado por build/gerar_clientes_hist.py. Usado na aba Insights (posição no histórico).
+PRODUCT_HIST_FILE = (getattr(cfg, "PRODUCT_HIST_FILE", "") or "").strip()
+
+
+def load_product_hist():
+    """{"de","ate","ranking":[nomes em ordem]} ou None (sem arquivo/chave)."""
+    if not PRODUCT_HIST_FILE or not os.environ.get("CLIENTES_KEY"):
+        return None
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), PRODUCT_HIST_FILE)
+    if not os.path.exists(path):
+        return None
+    import gerar_clientes_hist as gch
+    try:
+        with open(path, "rb") as f:
+            return json.loads(gch.decrypt(f.read()))
+    except Exception as e:
+        print(f"AVISO: não consegui decifrar o ranking de produtos ({type(e).__name__}).", file=sys.stderr)
+        return None
+
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
 META_CSV_URL = EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_META)
 SALES_CSV_URL = EXPORT_URL.format(sid=SPREADSHEET_ID_SALES, gid=GID_SALES)
@@ -626,6 +646,7 @@ def client_data(data: dict) -> dict:
     links = {k: v for k, v in data.get("ad_links", {}).items() if k in used_ads}
     return {"build": b, "meta": meta, "sales": sales, "meta_h": data.get("meta_h", []),
             "customer_hist": data.get("customer_hist"),
+            "prod_hist": data.get("prod_hist"),
             "ad_links": links, "briefings": {}}
 
 
@@ -675,6 +696,7 @@ def main():
         except Exception as e:  # aba opcional: nunca derruba o build
             print(f"AVISO: não consegui ler a aba de gasto por hora ({e}).", file=sys.stderr)
     data["meta_h"] = process_hourly(hourly_rows)
+    data["prod_hist"] = load_product_hist()
     data["build"]["has_hourly_spend"] = bool(data["meta_h"])
 
     # Briefings do Gestor (texto por IA, gerado 1x/dia pela Routine) — lidos do

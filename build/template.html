@@ -25,6 +25,7 @@
     <div class="nav-item active" data-page="geral"><span class="ic">◱</span> Visão Geral</div>
     <div class="nav-item full-only" data-page="meta"><span class="ic">◨</span> Meta Ads</div>
     <div class="nav-item full-only" data-page="rel"><span class="ic">▤</span> Relatórios</div>
+    <div class="nav-item" id="navIns" data-page="ins"><span class="ic">◎</span> Insights</div>
     <div class="nav-item full-only" data-page="ia"><span class="ic">✦</span> IA Insights</div>
     <div class="foot">Somente leitura · atualiza ~30 min<br><span id="buildFoot"></span></div>
   </aside>
@@ -240,6 +241,31 @@
         <h2 class="sec-title">Briefing do Gestor</h2>
         <div class="rel-brief" id="relBrief"></div>
         <p class="note" id="relBriefStamp"></p>
+      </div>
+
+      <!-- ===================== PÁGINA: INSIGHTS (produtos × novos/recorrentes) ===================== -->
+      <div class="page" id="page-ins">
+        <h2 class="sec-title">Como compram os clientes novos</h2>
+        <div class="rel-ov">
+          <div class="rel-ov-block"><div class="rel-ov-head">Clientes novos <span>1ª compra na loja</span></div><div class="rel-cards" id="insCardsN"></div></div>
+          <div class="rel-ov-block"><div class="rel-ov-head">Recorrentes <span>já compraram antes</span></div><div class="rel-cards" id="insCardsR"></div></div>
+        </div>
+
+        <h2 class="sec-title">Principais leituras</h2>
+        <div class="card"><ul class="ins-list" id="insList"></ul>
+          <p class="note" id="insNote"></p></div>
+
+        <h2 class="sec-title">Análise de produtos</h2>
+        <div class="card" style="padding:0">
+          <div class="tbl-wrap" style="max-height:560px"><table class="dt" id="insProd"></table></div>
+          <p class="note" style="padding:10px 15px 12px"><b>% sozinho</b> = pedidos de clientes novos em que o produto foi o único item. <b>Perfil</b> (só com 5+ pedidos no grupo): <b>Entrada</b> = clientes novos compram sozinho em 50%+ dos pedidos (o produto é o motivo da compra) · <b>Complemento</b> = sozinho em até 25% (vai junto com outro) · <b>Atrai novos</b> = pesa 1,5× mais entre novos que entre recorrentes · <b>Recompra</b> = pesa 1,5× mais entre recorrentes. <b># no histórico</b> = posição do produto no ranking de pedidos da loja (<span id="insHistRange"></span>). Clique no cabeçalho para ordenar.</p>
+        </div>
+
+        <h2 class="sec-title">Combinações mais compradas por clientes novos</h2>
+        <div class="card" style="padding:0">
+          <div class="tbl-wrap" style="max-height:420px"><table class="dt" id="insCombo"></table></div>
+          <p class="note" style="padding:10px 15px 12px">Pares de produtos que aparecem no mesmo pedido de cliente novo — ideias de kit e de oferta casada para os anúncios.</p>
+        </div>
       </div>
 
       <!-- ===================== PÁGINA 3: IA INSIGHTS ===================== -->

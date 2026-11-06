@@ -90,6 +90,8 @@ GID_META_HOURLY = ""
 # gerada por build/gerar_clientes_hist.py). Decifrada no Actions com o Secret
 # CLIENTES_KEY -> gráfico Clientes novos × recorrentes. Sem a chave, o gráfico some.
 CUSTOMER_HIST_FILE = "clientes_hist.enc"
+# Ranking histórico de produtos (mesma origem e mesma chave), para a aba Insights.
+PRODUCT_HIST_FILE = "produtos_hist.enc"
 
 # Vendas do catálogo chegam com UTM cortada (landing_url gravada com no máx. 255
 # caracteres: URL de produto longa + UTMs no fim). Liga o casamento por prefixo

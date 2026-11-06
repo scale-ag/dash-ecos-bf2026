@@ -304,11 +304,20 @@ function dailyCells(x,d,isTotal){
 /* ---------------- tabela Vendas por produto ---------------- */
 /* e-commerce (ALL_MAIN): a coluna de produtos traz "1x Produto A | 2x Produto B";
    conta em quantos pedidos cada produto aparece e o % sobre o total de pedidos. */
+/* Itens do pedido a partir da coluna de produtos ("1x Produto A | 2x Produto B").
+   Alguns NOMES contêm "|" (ex.: "Ampola Cistina ... | Ecosmetics 12ml"): um pedaço
+   que não começa com quantidade ("Nx ") é continuação do nome do item anterior. */
+function splitItems(prod){ const out=[];
+  String(prod||'').split('|').map(x=>x.trim()).filter(Boolean).forEach(seg=>{
+    const m=seg.match(/^(\d+)\s*x\s+(.*)$/i);
+    if(m) out.push({q:+m[1], p:m[2].trim()});
+    else if(out.length) out[out.length-1].p+=' | '+seg;
+    else out.push({q:1, p:seg}); });
+  return out; }
 function renderProdTableEcom(id, salesSet, pctLabel){
   const n=salesSet.length, byProd={}, units={};
   salesSet.forEach(r=>{ const seen=new Set();
-    String(r.prod||'').split('|').map(x=>x.trim()).filter(Boolean).forEach(item=>{
-      const mq=item.match(/^(\d+)\s*x\s+(.*)$/i), q=mq?+mq[1]:1, p=mq?mq[2].trim():item;
+    splitItems(r.prod).forEach(({q,p})=>{
       units[p]=(units[p]||0)+q;
       if(seen.has(p)) return; seen.add(p); byProd[p]=(byProd[p]||0)+1; }); });
   const rows=Object.entries(byProd).sort((a,b)=>b[1]-a[1]).map(([prod,c])=>({k:prod, cells:{prod, vendas:c, un:units[prod], pctm:n?c/n:null}}));
@@ -503,6 +512,62 @@ function renderOrigens(fS){
       h+=`<tr style="color:var(--muted)"><td class="dim" style="padding-left:26px">↳ ${esc(src)}</td><td>${intf(b.q)}</td><td>${pct(tot.q?b.q/tot.q:null)}</td><td>${brl(b.f)}</td><td>${brl(b.q?b.f/b.q:null)}</td></tr>`; }); });
   h+=`</tbody><tfoot><tr><td class="dim">Total</td><td>${intf(tot.q)}</td><td>${pct(tot.q?1:null)}</td><td>${brl(tot.f)}</td><td>${brl(tot.q?tot.f/tot.q:null)}</td></tr></tfoot>`;
   document.getElementById('gOrgTbl').innerHTML=h;
+}
+
+/* ---------------- PAGE: Insights (produtos × clientes novos/recorrentes) ----------------
+   Tudo calculado no navegador sobre os pedidos do período filtrado; as frases são
+   regras fixas sobre os números (sem IA). Perfis só com volume mínimo (INS_MIN). */
+const INS_MIN=5;
+const PH=DATA.prod_hist||null;
+const insNorm=s=>norm(s).replace(/\s+/g,' ');
+const HIST_RANK=(()=>{ const m={}; if(PH&&PH.ranking) PH.ranking.forEach((p,i)=>{ const k=insNorm(p); if(!(k in m)) m[k]=i+1; }); return m; })();
+const insItems=splitItems;
+function insList(arr,fmt){ return arr.map(fmt).join('; '); }
+function renderInsights(){
+  const fS=salesActive().filter(s=>s.nr===0||s.nr===1);
+  const G={0:{n:0,f:0,prods:0,un:0,solo:0},1:{n:0,f:0,prods:0,un:0,solo:0}}, P={}, combos={};
+  fS.forEach(s=>{ const its=insItems(s.prod), names=[...new Set(its.map(i=>i.p))], g=G[s.nr];
+    g.n+=s.main; g.f+=s.val; g.prods+=names.length; g.un+=its.reduce((a,i)=>a+i.q,0); if(names.length===1) g.solo++;
+    names.forEach(p=>{ const a=P[p]||(P[p]={n:0,r:0,solo:0,un:0}); if(s.nr===0){ a.n++; if(names.length===1) a.solo++; } else a.r++; });
+    its.forEach(i=>{ if(s.nr===0) P[i.p].un+=i.q; });
+    if(s.nr===0 && names.length>1){ const ns=names.slice().sort(); for(let i=0;i<ns.length;i++) for(let j=i+1;j<ns.length;j++){ const k=ns[i]+'\u0001'+ns[j]; combos[k]=(combos[k]||0)+1; } } });
+  const NN=G[0].n, NR=G[1].n;
+  const card=(g)=>[relCard('Pedidos',intf(g.n)),relCard('Ticket médio',brl(g.n?g.f/g.n:null)),relCard('Produtos por pedido',g.n?nf1.format(g.prods/g.n):'-'),
+    relCard('Unidades por pedido',g.n?nf1.format(g.un/g.n):'-'),relCard('Pedidos com 1 produto',pct(g.n?g.solo/g.n:null)),relCard('% dos pedidos',pct((NN+NR)?g.n/(NN+NR):null))].join('');
+  document.getElementById('insCardsN').innerHTML=card(G[0]); document.getElementById('insCardsR').innerHTML=card(G[1]);
+  /* produtos + perfis */
+  const rows=Object.entries(P).map(([p,a])=>{ const sn=NN?a.n/NN:0, sr=NR?a.r/NR:0, solo=a.n?a.solo/a.n:null, tags=[];
+    if(a.n>=INS_MIN && solo>=0.5) tags.push('ent'); if(a.n>=INS_MIN && solo<=0.25) tags.push('comp');
+    if(a.n>=INS_MIN && (sr===0 || sn/sr>=1.5)) tags.push('novo'); if(a.r>=INS_MIN && (sn===0 || sr/sn>=1.5)) tags.push('rec');
+    const rank=HIST_RANK[insNorm(p)]||null;
+    return {p,a,sn,sr,solo,tags,rank}; });
+  const LBL={ent:'Entrada',comp:'Complemento',novo:'Atrai novos',rec:'Recompra'};
+  const chips=t=>t.tags.length?t.tags.map(x=>`<span class="chip-p ${x}">${LBL[x]}</span>`).join(''):((t.a.n+t.a.r)<INS_MIN?'<span class="chip-p low">pouco volume</span>':'<span class="chip-p low">misto</span>');
+  rows.sort((x,y)=>y.a.n-x.a.n||y.a.r-x.a.r);
+  renderTable({id:'insProd', cols:[{key:'prod',label:'Produto',type:'dim',big:true},{key:'n',label:'Pedidos novos',type:'int',w:110,heat:'fat'},{key:'sn',label:'% dos novos',type:'pct',w:100},
+    {key:'solo',label:'% sozinho (novos)',type:'pct',w:130},{key:'r',label:'Pedidos recorrentes',type:'int',w:140},{key:'sr',label:'% dos recorrentes',type:'pct',w:130},
+    {key:'perfil',label:'Perfil',type:'dim',w:210},{key:'rank',label:'# no histórico',type:'int',w:110}],
+    rows:rows.map(t=>({k:t.p,cells:{prod:esc(t.p),n:t.a.n,sn:t.sn,solo:t.solo,r:t.a.r,sr:t.sr,perfil:chips(t),rank:t.rank}}))});
+  document.getElementById('insHistRange').textContent = PH&&PH.de ? `pedidos pagos de ${brdate(PH.de)} a ${brdate(PH.ate)}; "-" = não encontrado no histórico` : 'histórico indisponível';
+  /* combinações */
+  const cb=Object.entries(combos).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  renderTable({id:'insCombo', cols:[{key:'a',label:'Produto A',type:'dim',big:true},{key:'b',label:'Produto B',type:'dim',big:true},{key:'q',label:'Pedidos',type:'int',w:90},{key:'pc',label:'% dos pedidos de novos com 2+ produtos',type:'pct',w:260}],
+    rows:cb.map(([c,q])=>{ const [a,b]=c.split('\u0001'); return {k:c,cells:{a:esc(a),b:esc(b),q,pc:(NN-G[0].solo)?q/(NN-G[0].solo):null}}; })});
+  /* leituras automáticas */
+  const L=[], top=(tag,n)=>rows.filter(t=>t.tags.includes(tag)).slice(0,n);
+  const nm=t=>`<b>${esc(t.p)}</b>`;
+  if(NN+NR) L.push(`Clientes novos fizeram <b>${intf(NN)}</b> dos ${intf(NN+NR)} pedidos (${pct(NN/(NN+NR))}), com ticket de <b>${brl(NN?G[0].f/NN:null)}</b> contra ${brl(NR?G[1].f/NR:null)} dos recorrentes. <b>${pct(NN?G[0].solo/NN:null)}</b> dos novos compram um único produto (recorrentes: ${pct(NR?G[1].solo/NR:null)}).`);
+  const ent=top('ent',4); if(ent.length) L.push(`<b>Produtos de entrada</b> — clientes novos compram sozinhos, ou seja, são o motivo da compra: ${insList(ent,t=>`${nm(t)} (${t.a.n} pedidos, ${pct(t.solo)} sozinho${t.rank?`, #${t.rank} no histórico`:''})`)}. São os melhores candidatos para anúncios de aquisição.`);
+  const nov=rows.filter(t=>t.tags.includes('novo')&&!t.tags.includes('ent')).slice(0,3); if(nov.length) L.push(`<b>Atraem mais clientes novos que a base</b>: ${insList(nov,t=>`${nm(t)} (${pct(t.sn)} dos pedidos de novos × ${pct(t.sr)} dos recorrentes)`)}.`);
+  const comp=top('comp',3); if(comp.length) L.push(`<b>Vão de carona</b> — aparecem bastante, mas quase sempre junto com outro produto: ${insList(comp,t=>`${nm(t)} (${pct(t.solo)} sozinho)`)}. Funcionam melhor como complemento, kit ou upsell do que como gancho do anúncio.`);
+  const rec=top('rec',3).sort((x,y)=>y.a.r-x.a.r); if(rec.length) L.push(`<b>Produtos de recompra</b> — fortes na base e fracos entre novos: ${insList(rec,t=>`${nm(t)} (${pct(t.sr)} dos recorrentes × ${pct(t.sn)} dos novos)`)}. Bons para remarketing e e-mail para clientes.`);
+  const cbTxt=c=>c.split('\u0001').map(x=>`<b>${esc(x)}</b>`).join(' <i>com</i> ');
+  if(cb.length) L.push(`<b>Combinação mais comprada por clientes novos</b>: ${cbTxt(cb[0][0])} (${cb[0][1]} pedidos)${cb[1]?`; em seguida ${cbTxt(cb[1][0])} (${cb[1][1]})`:''}.`);
+  if(PH&&PH.ranking){ const sold=new Set(Object.keys(P).map(insNorm)); const miss=PH.ranking.slice(0,10).map((p,i)=>({p,i})).filter(x=>!sold.has(insNorm(x.p))).slice(0,4);
+    if(miss.length) L.push(`<b>Campeões do histórico sem nenhuma venda no período</b>: ${miss.map(x=>`#${x.i+1} ${esc(x.p)}`).join('; ')}. Vale conferir estoque, preço e se estão na oferta.`); }
+  document.getElementById('insList').innerHTML=L.map(x=>`<li>${x}</li>`).join('')||'<li>Sem pedidos identificados no período.</li>';
+  document.getElementById('insNote').innerHTML = (NN<100?`⚠️ Ainda são poucos pedidos de clientes novos no período (${intf(NN)}): trate as leituras como tendência. `:'')+
+    `Leituras recalculadas a cada atualização da dashboard, sobre o período selecionado no topo. Perfis só aparecem com ${INS_MIN}+ pedidos no grupo.`;
 }
 
 /* ---------------- PAGE 1: Visão Geral ---------------- */
@@ -951,18 +1016,19 @@ function ppApply(){
 }
 
 /* ---------------- navigation & boot ---------------- */
-function setPage(p){ if(CLIENT) p='geral'; STATE.page=p;
+function setPage(p){ if(CLIENT && p!=='ins') p='geral'; if(p==='ins' && !HAS_NR) p='geral'; STATE.page=p;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
   document.getElementById('page-geral').classList.toggle('active',p==='geral');
   document.getElementById('page-meta').classList.toggle('active',p==='meta');
   document.getElementById('page-rel').classList.toggle('active',p==='rel');
   document.getElementById('page-ia').classList.toggle('active',p==='ia');
-  document.getElementById('ptitle').textContent = p==='meta'?'Meta Ads':(p==='rel'?'Relatórios':(p==='ia'?'IA Insights':'Visão Geral'));
+  document.getElementById('page-ins').classList.toggle('active',p==='ins');
+  document.getElementById('ptitle').textContent = p==='meta'?'Meta Ads':(p==='rel'?'Relatórios':(p==='ia'?'IA Insights':(p==='ins'?'Insights':'Visão Geral')));
   document.getElementById('navToggle').checked=false;
   history.replaceState(null,'', '#'+p);
   renderAll();
 }
-function renderAll(){ if(STATE.page==='meta') renderMeta(); else if(STATE.page==='rel') renderRelatorios(); else if(STATE.page==='ia') renderIA(); else renderGeral(); }
+function renderAll(){ if(STATE.page==='meta') renderMeta(); else if(STATE.page==='rel') renderRelatorios(); else if(STATE.page==='ia') renderIA(); else if(STATE.page==='ins') renderInsights(); else renderGeral(); }
 
 /* Tema ESCURO é o padrão; só fica claro se o usuário tiver escolhido 'light'. */
 function applyTheme(){ const t=localStorage.getItem('dm_theme'); if(t==='light') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme','dark'); }
@@ -1005,7 +1071,8 @@ document.getElementById('noteG').innerHTML = ALL_MAIN
 document.getElementById('noteM').innerHTML = ALL_MAIN
   ? `Considera <b>apenas pedidos atribuídos ao Meta Ads</b> (utm_campaign + anúncio = Campaign Name + Ad Name). Cada pedido pago = 1 venda; Faturamento = valor total do pedido.`
   : `Considera <b>apenas vendas atribuídas ao Meta Ads</b> (utm_campaign + anúncio = Campaign Name + Ad Name). <b>Vendas/Custo por Compra/Tx Compra/Ticket</b> = produto principal (${esc(MAIN_PRODUCT)}); <b>Faturamento/ROAS</b> = todos os produtos do funil (orderbumps/upsells).`;
-if(ALL_MAIN){ const pc=document.getElementById('gProdCard'); if(pc) pc.style.display='none'; }  /* substituída por "Vendas por produto" completa */
+if(ALL_MAIN){ const pc=document.getElementById('gProdCard'); if(pc) pc.style.display='none'; }
+if(!HAS_NR){ const ni=document.getElementById('navIns'); if(ni) ni.style.display='none'; }  /* Insights depende da base de clientes */  /* substituída por "Vendas por produto" completa */
 document.getElementById('noteProdG').textContent = ALL_MAIN ? 'Pedidos que contêm cada produto · % sobre o total de pedidos' : MAIN_PRODUCT+' = 100% · demais em % (todas as vendas)';
 document.getElementById('noteProdM').textContent = ALL_MAIN ? 'Pedidos que contêm cada produto · só Meta Ads' : MAIN_PRODUCT+' = 100% · só Meta Ads';
 document.getElementById('updated').innerHTML='Última atualização:<br>'+B.generated_at_brt+' (BRT)';

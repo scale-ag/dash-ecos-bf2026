@@ -266,6 +266,23 @@ Seção abaixo do funil, seguindo o filtro de período (dados a partir de 01/11/
   pedidos de clientes novos (`nr = 0`); some se a base de clientes (`CLIENTES_KEY`) faltar.
 Vendas/Faturamento aqui = todos os pedidos pagos (todas as origens), como no funil.
 
+## Aba Insights (interna e `/cliente/`) — produtos × clientes novos/recorrentes
+
+Calculada no navegador sobre o período filtrado (atualiza a cada build). Só aparece com a
+base de clientes (`CLIENTES_KEY`). Conteúdo: cards novos × recorrentes (pedidos, ticket,
+produtos/unidades por pedido, % pedidos com 1 produto); **Principais leituras** (frases por
+regras fixas, sem IA); **Análise de produtos** (pedidos novos/recorrentes, % sozinho entre
+novos, perfil, # no histórico); **Combinações** mais compradas por novos.
+- Perfis (mín. 5 pedidos no grupo, `INS_MIN` no `app.js`): **Entrada** = novos compram
+  sozinho em ≥50% · **Complemento** = sozinho ≤25% · **Atrai novos** = participação entre
+  novos ≥1,5× a dos recorrentes · **Recompra** = o inverso.
+- **# no histórico**: `build/produtos_hist.enc` (cifrado, mesma chave; só a ORDEM dos
+  nomes, sem quantidades), gerado junto com a base de clientes por `gerar_clientes_hist.py`.
+  No export Nuvemshop só a 1ª linha do pedido tem data/status: contar produtos pelos
+  pedidos pagos, nunca filtrando item por data (senão somem os itens 2+ do pedido).
+- **Nomes com "|"** (ex.: "Ampola Cistina ... | Ecosmetics 12ml"): a coluna `produtos` usa
+  "|" como separador; pedaço sem "Nx " é continuação do nome (`splitItems()` no `app.js`).
+
 ## IA Insights
 
 Aba de análise por IA (Claude) do funil e das estruturas ativas — ver `SETUP-IA.md`
