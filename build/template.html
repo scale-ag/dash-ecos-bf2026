@@ -107,6 +107,15 @@
           </div>
         </div>
 
+        <div id="ufSection">
+          <h2 class="sec-title">Faturamento por estado</h2>
+          <div class="grid when-grid">
+            <div class="card"><h3>Top 10 estados em faturamento</h3><p class="hint">Pedidos pagos de todas as origens · estado do endereço do pedido · período filtrado.</p><div class="chart-box"><canvas id="gUf"></canvas></div></div>
+            <div class="card" style="padding:0"><div style="padding:14px 15px 4px"><h3>Todos os estados</h3><p class="hint" style="margin:0" id="ufHint"></p></div>
+              <div class="tbl-wrap" style="max-height:300px"><table class="dt" id="gUfTbl"></table></div></div>
+          </div>
+        </div>
+
         <h2 class="sec-title">Quando e o que vende</h2>
         <div class="grid when-grid">
           <div class="card"><h3>Vendas por dia da semana</h3><p class="hint">Vendas (barras) · Gasto Meta e Faturamento (R$) · ROAS — no período filtrado.</p><div class="chart-box"><canvas id="gWeek"></canvas></div></div>

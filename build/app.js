@@ -570,6 +570,21 @@ function renderInsights(){
     `Leituras recalculadas a cada atualização da dashboard, sobre o período selecionado no topo. Perfis só aparecem com ${INS_MIN}+ pedidos no grupo.`;
 }
 
+/* ---------------- Faturamento por estado (precisa da coluna de estado na planilha) ---------------- */
+function renderEstados(fS){
+  const sec=document.getElementById('ufSection'); if(!sec) return;
+  if(!B.has_state){ sec.style.display='none'; return; }
+  const U={}; let tf=0, tq=0, semF=0, semQ=0;
+  fS.forEach(s=>{ tf+=s.val; tq+=s.main; if(!s.uf){ semF+=s.val; semQ+=s.main; return; }
+    const a=U[s.uf]||(U[s.uf]={q:0,f:0,n:0}); a.q+=s.main; a.f+=s.val; if(s.nr===0) a.n+=s.main; });
+  hbar('gUf', Object.entries(U).map(([label,a])=>({label,v:a.f})), x=>x.v, cvar('--chart-faturamento'), 10, brl);
+  const rows=Object.entries(U).sort((a,b)=>b[1].f-a[1].f).map(([uf,a])=>({k:uf,cells:{uf,f:a.f,pf:tf?a.f/tf:null,q:a.q,t:a.q?a.f/a.q:null,pn:(HAS_NR&&a.q)?a.n/a.q:null}}));
+  const cols=[{key:'uf',label:'UF',type:'dim',w:60},{key:'f',label:'Faturamento',type:'brl',w:120,heat:'fat'},{key:'pf',label:'% fat.',type:'pct',w:80},
+    {key:'q',label:'Pedidos',type:'int',w:80},{key:'t',label:'Ticket',type:'brl',w:100}].concat(HAS_NR?[{key:'pn',label:'% novos',type:'pct',w:90}]:[]);
+  renderTable({id:'gUfTbl', cols, rows});
+  document.getElementById('ufHint').textContent = semQ ? `${intf(semQ)} pedido(s) (${brl(semF)}) sem estado na planilha ficaram de fora.` : 'Clique no cabeçalho para ordenar.';
+}
+
 /* ---------------- PAGE 1: Visão Geral ---------------- */
 function renderGeral(){
   const fM=metaActive(), fS=salesActive();          // fS = todas as vendas do funil
@@ -584,6 +599,7 @@ function renderGeral(){
 
   if(CLIENT) renderCreatives('gCreat', fS.filter(s=>s.meta), fM);
   renderOrigens(fS);
+  renderEstados(fS);
   renderNovosRecorrentes(fS);
   renderWhen(fS, fM);
 

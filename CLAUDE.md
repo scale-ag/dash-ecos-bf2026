@@ -249,6 +249,16 @@ produtos, briefings nem Worker da IA.
   Secret o build segue normal e a seção fica escondida.
 - Atualizar a base (ex.: novo export): `CLIENTES_KEY=<chave> python build/gerar_clientes_hist.py --csv Vendas.csv --ate AAAA-MM-DD` e commitar só o `.enc`.
 
+## Faturamento por estado (Visão Geral — interna e `/cliente/`) — AGUARDANDO COLUNA
+
+Top 10 estados em faturamento (barras) + tabela de todos os UFs (faturamento, %, pedidos,
+ticket, % novos), seguindo o filtro de período. **Só aparece quando a aba vendas tiver uma
+coluna de estado**: o build procura `estado`, `uf`, `estado_entrega`, `uf_entrega`,
+`shipping_province`, `province`, `provincia` (sigla "ES" ou nome "Espírito Santo", com ou
+sem acento → `uf_sigla()` no `build.py`). Em 10/11/2026 a coluna ainda não existe: pedido
+para quem mantém a sincronização Nuvemshop → planilha (script fora deste repositório)
+incluir o estado do endereço de entrega do pedido (`shipping_address.province` na API).
+
 ## Quando e o que vende (Visão Geral — interna e `/cliente/`)
 
 Seção abaixo do funil, seguindo o filtro de período (dados a partir de 01/11/2026):

@@ -253,6 +253,27 @@ def parse_hour(v: str):
     return h if 0 <= h <= 23 else None
 
 
+_UF_NOMES = {
+    "acre": "AC", "alagoas": "AL", "amapa": "AP", "amazonas": "AM", "bahia": "BA", "ceara": "CE",
+    "distrito federal": "DF", "espirito santo": "ES", "goias": "GO", "maranhao": "MA",
+    "mato grosso": "MT", "mato grosso do sul": "MS", "minas gerais": "MG", "para": "PA",
+    "paraiba": "PB", "parana": "PR", "pernambuco": "PE", "piaui": "PI", "rio de janeiro": "RJ",
+    "rio grande do norte": "RN", "rio grande do sul": "RS", "rondonia": "RO", "roraima": "RR",
+    "santa catarina": "SC", "sao paulo": "SP", "sergipe": "SE", "tocantins": "TO",
+}
+_UF_SIGLAS = set(_UF_NOMES.values())
+
+
+def uf_sigla(v: str) -> str:
+    """'ES', 'es', 'Espírito Santo', 'ESPIRITO SANTO' -> 'ES'; vazio/desconhecido -> ''."""
+    s = norm(v)
+    if not s:
+        return ""
+    if s.upper() in _UF_SIGLAS:
+        return s.upper()
+    return _UF_NOMES.get(s, "")
+
+
 def origem_label(origin: str, source: str) -> str:
     """Origem da venda para o gráfico: coluna de origem (rótulo via ORIGIN_LABELS),
     senão o utm_source, senão "Sem origem"."""
@@ -429,7 +450,10 @@ def process(meta_rows, sales_rows):
          "status": ["status"],
          "customer": ["cliente_id", "customer id", "id do cliente"],
          "source": ["utm_source", "utm source"],
-         "origin": ["origem_detectada", "origem detectada", "origem"]}
+         "origin": ["origem_detectada", "origem detectada", "origem"],
+         # Estado do pedido (endereço de entrega). Opcional: sem a coluna, a seção
+         # "Faturamento por estado" fica escondida.
+         "state": ["estado", "uf", "estado_entrega", "uf_entrega", "shipping_province", "province", "provincia"]}
     sfallback = {"created": 3, "name": 1, "email": 2, "prod": 0, "val": 6}
     # Overrides do cliente (build/config.py -> SALES_COLUMNS): lista de nomes
     # de coluna; lista vazia = coluna inexistente (sem fallback posicional).
@@ -536,6 +560,7 @@ def process(meta_rows, sales_rows):
             # origem da venda (só dashboard interna; não vai para a página do cliente)
             "org": origem_label(cell(row, sidx["origin"]), cell(row, sidx["source"])),
             "src": cell(row, sidx["source"]),
+            "uf": uf_sigla(cell(row, sidx["state"])),
             "val": round(to_float(cell(row, sidx["val"])), 2),
             "main": 1 if main else 0,
             # meta=1 quando a venda casa com campanha+anúncio real do Meta (tráfego
@@ -566,6 +591,7 @@ def process(meta_rows, sales_rows):
             "has_video": midx["v3"] is not None,
             "has_customer_hist": hist_keys is not None,
             "has_origin": sidx.get("origin") is not None or sidx.get("source") is not None,
+            "has_state": sidx.get("state") is not None,
             "client_mode": False,
             "ia_worker_url": IA_WORKER_URL,
             # Metas da aba Relatórios (código de cor de CAC/ROAS)
@@ -640,7 +666,7 @@ def client_data(data: dict) -> dict:
     pode ser visto nem pelo código-fonte da página."""
     b = dict(data["build"], client_mode=True, ia_worker_url="")
     meta = [{k: v for k, v in m.items() if k not in ("camp", "adset")} for m in data["meta"]]
-    sales = [{"d": s["d"], "h": s.get("h"), "nr": s.get("nr"), "prod": s["prod"], "ad": s["ad"] if s["meta"] else "",
+    sales = [{"d": s["d"], "h": s.get("h"), "nr": s.get("nr"), "uf": s.get("uf", ""), "prod": s["prod"], "ad": s["ad"] if s["meta"] else "",
               "val": s["val"], "main": s["main"], "meta": s["meta"]} for s in data["sales"]]
     used_ads = {m["ad"] for m in meta}
     links = {k: v for k, v in data.get("ad_links", {}).items() if k in used_ads}
