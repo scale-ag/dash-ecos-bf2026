@@ -24,6 +24,7 @@
     <div class="sec">Dashboards</div>
     <div class="nav-item active" data-page="geral"><span class="ic">◱</span> Visão Geral</div>
     <div class="nav-item full-only" data-page="meta"><span class="ic">◨</span> Meta Ads</div>
+    <div class="nav-item full-only" id="navGer" data-page="ger"><span class="ic">◧</span> Dados Gerenciador</div>
     <div class="nav-item full-only" data-page="rel"><span class="ic">▤</span> Relatórios</div>
     <div class="nav-item" id="navIns" data-page="ins"><span class="ic">◎</span> Insights</div>
     <div class="nav-item full-only" data-page="ia"><span class="ic">✦</span> IA Insights</div>
@@ -166,8 +167,8 @@
 
         <h2 class="sec-title">Faturamento por anúncio &amp; vendas por produto</h2>
         <div class="funnel-charts">
-          <div class="card"><h3>Faturamento por anúncio</h3><p class="hint">Top 10 · utm_content · só Meta Ads</p><div class="chart-box chart-sm"><canvas id="mContent"></canvas></div></div>
-          <div class="card" style="padding:0"><div style="padding:14px 15px 4px"><h3>Vendas por produto</h3><p class="hint" style="margin:0" id="noteProdM"></p></div><div class="tbl-wrap" style="max-height:190px"><table class="dt" id="mProd"></table></div></div>
+          <div class="card"><h3>Faturamento por anúncio</h3><p class="hint" id="mContentHint">Top 10 · utm_content · só Meta Ads</p><div class="chart-box chart-sm"><canvas id="mContent"></canvas></div></div>
+          <div class="card" id="mProdCard" style="padding:0"><div style="padding:14px 15px 4px"><h3>Vendas por produto</h3><p class="hint" style="margin:0" id="noteProdM"></p></div><div class="tbl-wrap" style="max-height:190px"><table class="dt" id="mProd"></table></div></div>
         </div>
 
         <h2 class="sec-title">Otimização · Campanha → Conjunto → Anúncio</h2>
@@ -187,10 +188,12 @@
           <div class="pair-chart"><div class="pc-title">CAC por anúncio, por dia</div><canvas id="chAd"></canvas></div>
         </div>
 
+        <div id="mQualWrap">
         <h2 class="sec-title">Compradores <span class="pill q" id="qCount"></span></h2>
         <div class="card" style="padding:0">
           <div class="tbl-wrap" style="max-height:360px"><table class="dt" id="tQual"></table></div>
           <p class="note" style="padding:10px 15px">E‑mail <b>mascarado</b> (página pública). Só vendas atribuídas ao Meta Ads (produto principal + orderbumps/upsells).</p>
+        </div>
         </div>
       </div>
 

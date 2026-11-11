@@ -372,6 +372,11 @@ def process(meta_rows, sales_rows):
          "thru": ["thruplays", "thruplay"],
          "p75": ["video watches at 75%", "video plays at 75%", "video p75"],
          "ck": ["checkouts initiated", "checkouts", "initiate checkout", "checkout"],
+         # Compras e valor de conversão reportados pelo PIXEL do Meta (opcionais) —
+         # usados só na aba "Dados Gerenciador"; as outras abas usam a planilha de vendas.
+         "pu": ["purchases", "website purchases", "compras"],
+         "pval": ["purchases conversion value", "purchase conversion value", "website purchases conversion value",
+                  "valor de conversao das compras"],
          # Link do criativo no Instagram (coluna acrescentada pelo cliente na aba
          # Meta Ads). Usada na aba Relatórios (Top/Piores anúncios) para linkar o
          # anúncio. Aliases cobrem variações do cabeçalho.
@@ -429,6 +434,8 @@ def process(meta_rows, sales_rows):
             "v3": to_float(cell(row, midx["v3"])) if midx["v3"] is not None else 0.0,
             "thru": to_float(cell(row, midx["thru"])) if midx["thru"] is not None else 0.0,
             "p75": to_float(cell(row, midx["p75"])) if midx["p75"] is not None else 0.0,
+            "pu": to_float(cell(row, midx["pu"])) if midx["pu"] is not None else 0.0,
+            "pval": round(to_float(cell(row, midx["pval"])), 2) if midx["pval"] is not None else 0.0,
         })
 
     # ---------------- Aba COMPRADORES ----------------
@@ -589,6 +596,7 @@ def process(meta_rows, sales_rows):
             "all_products_main": ALL_PRODUCTS_MAIN,
             "has_atc": midx["atc"] is not None,
             "has_video": midx["v3"] is not None,
+            "has_meta_purchases": midx["pu"] is not None,
             "has_customer_hist": hist_keys is not None,
             "has_origin": sidx.get("origin") is not None or sidx.get("source") is not None,
             "has_state": sidx.get("state") is not None,

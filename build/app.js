@@ -58,7 +58,7 @@ const salesActive = ()=> SALES.filter(s=>dateActive(s.d));
    fat     = faturamento (todos os produtos do escopo)
    Obs.: na aba Meta o conjunto de vendas já é filtrado a meta==1, então vendas==vendasM. */
 function newBucket(){return {sp:0,im:0,cl:0,pv:0,atc:0,ck:0,vendas:0,vendasM:0,fat:0};}
-function addSales(a,r){ a.vendas+=r.main; a.vendasM+=(r.main&&r.meta)?1:0; a.fat+=r.val; }
+function addSales(a,r){ a.vendas+=r.main; a.vendasM+=r.meta?r.main:0; a.fat+=r.val; }   /* main pode ser >1 nas linhas do gerenciador (Purchases) */
 function derive(a){
   const g=a.sp*taxf();
   return {gasto:g, impr:a.im, cliques:a.cl, pv:a.pv, atc:a.atc, ck:a.ck, vendas:a.vendas, fat:a.fat,
@@ -612,8 +612,14 @@ function renderGeral(){
   });
 }
 
-/* ---------------- PAGE 2: Meta Ads ---------------- */
-function metaScope(ex){ let fM=metaActive(), fS=salesActive().filter(s=>s.meta);   // só Meta Ads
+/* ---------------- PAGE 2: Meta Ads  (e "Dados Gerenciador", mesma tela) ----------------
+   MSRC='nuvem': vendas = pedidos da planilha atribuídos ao Meta pela UTM (aba Meta Ads).
+   MSRC='ger'  : vendas = Purchases / Purchases Conversion Value que o PIXEL do Meta
+                 reporta nas próprias queries (aba Dados Gerenciador) — sem cruzar com a planilha. */
+let MSRC='nuvem';
+const GER_SALES = META.filter(m=>m.pu>0||m.pval>0).map(m=>({d:m.d,camp:m.camp,adset:m.adset,ad:m.ad,main:m.pu||0,meta:1,val:m.pval||0,prod:'',nr:null}));
+const metaSalesBase = ()=> MSRC==='ger' ? GER_SALES : SALES.filter(s=>s.meta);
+function metaScope(ex){ let fM=metaActive(), fS=metaSalesBase().filter(s=>dateActive(s.d));   // só Meta Ads
   if(ex!=='C'&&STATE.mSelC.size){ fM=fM.filter(r=>STATE.mSelC.has(r.camp)); fS=fS.filter(r=>STATE.mSelC.has(r.camp)); }
   if(ex!=='A'&&STATE.mSelA.size){ fM=fM.filter(r=>STATE.mSelA.has(r.adset)); fS=fS.filter(r=>STATE.mSelA.has(r.adset)); }
   if(ex!=='D'&&STATE.mSelAd.size){ fM=fM.filter(r=>STATE.mSelAd.has(r.ad)); fS=fS.filter(r=>STATE.mSelAd.has(r.ad)); }
@@ -627,13 +633,20 @@ function selDim(dim,key,ctrl){
 }
 function metaPrevTotals(pw){
   let fM=META.filter(m=>inRange(m.d,pw.from,pw.to));
-  let fS=SALES.filter(s=>s.meta && inRange(s.d,pw.from,pw.to));
+  let fS=metaSalesBase().filter(s=>inRange(s.d,pw.from,pw.to));
   if(STATE.mSelC.size){fM=fM.filter(r=>STATE.mSelC.has(r.camp));fS=fS.filter(r=>STATE.mSelC.has(r.camp));}
   if(STATE.mSelA.size){fM=fM.filter(r=>STATE.mSelA.has(r.adset));fS=fS.filter(r=>STATE.mSelA.has(r.adset));}
   if(STATE.mSelAd.size){fM=fM.filter(r=>STATE.mSelAd.has(r.ad));fS=fS.filter(r=>STATE.mSelAd.has(r.ad));}
   return totals(fS,fM);
 }
 function renderMeta(){
+  const GER = MSRC==='ger';
+  document.getElementById('mProdCard').style.display = GER ? 'none' : '';
+  document.getElementById('mQualWrap').style.display = GER ? 'none' : '';
+  document.getElementById('mContentHint').textContent = GER ? 'Top 10 · valor de conversão das compras (pixel do Meta)' : 'Top 10 · utm_content · só Meta Ads';
+  document.getElementById('noteM').innerHTML = GER
+    ? 'Números <b>só do Gerenciador de Anúncios</b> (queries do Meta): Vendas = <b>Purchases</b> e Faturamento = <b>Purchases Conversion Value</b>, como o pixel do Meta reporta (atribuição do Meta, inclui view-through), <b>sem cruzar</b> com a planilha de vendas da loja. Compare com a aba Meta Ads para ver a diferença entre o que o Meta atribui e o que a loja registrou pela UTM.'
+    : NOTE_M_DEFAULT;
   const F=metaScope(null), fM=F.fM, fS=F.fS;
   const t=totals(fS,fM), d=derive(t);
   const pw=prevWindow(); const tp = pw ? metaPrevTotals(pw) : null;
@@ -1032,19 +1045,22 @@ function ppApply(){
 }
 
 /* ---------------- navigation & boot ---------------- */
-function setPage(p){ if(CLIENT && p!=='ins') p='geral'; if(p==='ins' && !HAS_NR) p='geral'; STATE.page=p;
+function setPage(p){ if(CLIENT && p!=='ins') p='geral'; if(p==='ins' && !HAS_NR) p='geral'; if(p==='ger' && !B.has_meta_purchases) p='meta';
+  const src = p==='ger' ? 'ger' : 'nuvem';
+  if((p==='meta'||p==='ger') && src!==MSRC){ MSRC=src; STATE.mSelC.clear(); STATE.mSelA.clear(); STATE.mSelAd.clear(); }  /* troca de fonte: limpa seleções */
+  STATE.page=p;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
   document.getElementById('page-geral').classList.toggle('active',p==='geral');
-  document.getElementById('page-meta').classList.toggle('active',p==='meta');
+  document.getElementById('page-meta').classList.toggle('active',p==='meta'||p==='ger');
   document.getElementById('page-rel').classList.toggle('active',p==='rel');
   document.getElementById('page-ia').classList.toggle('active',p==='ia');
   document.getElementById('page-ins').classList.toggle('active',p==='ins');
-  document.getElementById('ptitle').textContent = p==='meta'?'Meta Ads':(p==='rel'?'Relatórios':(p==='ia'?'IA Insights':(p==='ins'?'Insights':'Visão Geral')));
+  document.getElementById('ptitle').textContent = p==='meta'?'Meta Ads':p==='ger'?'Dados Gerenciador':(p==='rel'?'Relatórios':(p==='ia'?'IA Insights':(p==='ins'?'Insights':'Visão Geral')));
   document.getElementById('navToggle').checked=false;
   history.replaceState(null,'', '#'+p);
   renderAll();
 }
-function renderAll(){ if(STATE.page==='meta') renderMeta(); else if(STATE.page==='rel') renderRelatorios(); else if(STATE.page==='ia') renderIA(); else if(STATE.page==='ins') renderInsights(); else renderGeral(); }
+function renderAll(){ if(STATE.page==='meta'||STATE.page==='ger') renderMeta(); else if(STATE.page==='rel') renderRelatorios(); else if(STATE.page==='ia') renderIA(); else if(STATE.page==='ins') renderInsights(); else renderGeral(); }
 
 /* Tema ESCURO é o padrão; só fica claro se o usuário tiver escolhido 'light'. */
 function applyTheme(){ const t=localStorage.getItem('dm_theme'); if(t==='light') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme','dark'); }
@@ -1084,9 +1100,11 @@ const RATES_TXT=HAS_ATC?'Connect Rate, Tx Carrinho, Tx Checkout, Tx Compra, Tx C
 document.getElementById('noteG').innerHTML = ALL_MAIN
   ? `Vendas e Faturamento = <b>todos os pedidos pagos</b> (${esc(MAIN_PRODUCT)}), de qualquer origem. Taxas de conversão (${RATES_TXT}) = <b>só Meta Ads</b>.`
   : `Vendas e Faturamento = <b>totais</b> (todas as vendas). Vendas/Custo por Compra/Ticket = produto principal (${esc(MAIN_PRODUCT)}); taxas de conversão (${RATES_TXT}) = <b>só Meta Ads</b>.`;
-document.getElementById('noteM').innerHTML = ALL_MAIN
+const NOTE_M_DEFAULT = ALL_MAIN
   ? `Considera <b>apenas pedidos atribuídos ao Meta Ads</b> (utm_campaign + anúncio = Campaign Name + Ad Name). Cada pedido pago = 1 venda; Faturamento = valor total do pedido.`
   : `Considera <b>apenas vendas atribuídas ao Meta Ads</b> (utm_campaign + anúncio = Campaign Name + Ad Name). <b>Vendas/Custo por Compra/Tx Compra/Ticket</b> = produto principal (${esc(MAIN_PRODUCT)}); <b>Faturamento/ROAS</b> = todos os produtos do funil (orderbumps/upsells).`;
+document.getElementById('noteM').innerHTML = NOTE_M_DEFAULT;
+if(!B.has_meta_purchases){ const ng=document.getElementById('navGer'); if(ng) ng.style.display='none'; }  /* Dados Gerenciador precisa de Purchases nas queries */
 if(ALL_MAIN){ const pc=document.getElementById('gProdCard'); if(pc) pc.style.display='none'; }
 if(!HAS_NR){ const ni=document.getElementById('navIns'); if(ni) ni.style.display='none'; }  /* Insights depende da base de clientes */  /* substituída por "Vendas por produto" completa */
 document.getElementById('noteProdG').textContent = ALL_MAIN ? 'Pedidos que contêm cada produto · % sobre o total de pedidos' : MAIN_PRODUCT+' = 100% · demais em % (todas as vendas)';
@@ -1097,7 +1115,7 @@ document.getElementById('buildFoot2').textContent='· build __BUILD_ID__';
 
 syncDateInputs(); iaStatusText();
 document.getElementById('taxToggle').classList.toggle('on', STATE.tax);  /* imposto Meta ON por padrão */
-setPage(location.hash==='#meta'?'meta':(location.hash==='#rel'?'rel':(location.hash==='#ia'?'ia':'geral')));
+setPage({'#meta':'meta','#ger':'ger','#rel':'rel','#ia':'ia','#ins':'ins'}[location.hash]||'geral');
 
 /* ---------------- Aviso de nova versão (sem recarregar por cima do usuário) ----------------
    O build publica uma versão nova a cada ~30 min, mas o GitHub Pages serve o HTML

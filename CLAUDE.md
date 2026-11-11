@@ -95,6 +95,7 @@ cliente são **duas planilhas** (`SPREADSHEET_ID` e `SPREADSHEET_ID_SALES`).
 ordem não importa):
 Day · Campaign Name · Ad Set Name · Ad Name · Impressions · Link Clicks ·
 Landing Page Views · Adds to Cart · Checkouts Initiated · Amount Spent ·
+Purchases · Purchases Conversion Value (pixel; só aba Dados Gerenciador) ·
 3-Second Video Views · ThruPlays · Video Watches at 25% / 50% / 75% / 95% / 100% ·
 Video Average Watch Time · Creative Instagram Permalink
 (`Amount Spent` com vírgula decimal; células vazias = 0. Vídeo é opcional: anúncios
@@ -205,6 +206,18 @@ O match com o Meta (campo `meta`, usado pela aba Meta Ads) exige `utm_campaign` 
 a coluna de `AD_UTM_COLUMN` batendo com uma linha real do Meta; quando casa, a venda
 herda a campanha/conjunto reais do Meta (para o gasto e a venda caírem na mesma linha
 das tabelas).
+## Aba Dados Gerenciador (só na dashboard interna)
+
+Mesma tela da aba Meta Ads (funil, combinação diária, indicadores, tabelas campanha →
+conjunto → anúncio com mapa de calor de custos e CAC por dia), mas **só com os dados das
+queries do Gerenciador**: Vendas = coluna **Purchases** e Faturamento = **Purchases
+Conversion Value** da aba Página1 (pixel do Meta, atribuição do próprio Meta), **sem
+cruzar** com a planilha de vendas. Implementação: `MSRC='ger'` no `app.js` troca a fonte
+de vendas de `renderMeta()` por `GER_SALES` (montado das linhas do Meta); cards de
+produto e compradores ficam escondidos. Sem a coluna Purchases nas queries, a aba some.
+Em 11/11/2026 (01–11/11): Gerenciador 391 compras / R$ 109,2 mil / ROAS 3,7 × planilha
+(UTM) 182 vendas / R$ 48,4 mil / ROAS 1,6.
+
 ## Mapa de calor de custos (aba Meta Ads — só na dashboard interna)
 
 Tabelas por dia, campanha, conjunto e anúncio da aba Meta Ads: colunas **CPM, Custo/View,
