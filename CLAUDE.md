@@ -218,6 +218,17 @@ produto e compradores ficam escondidos. Sem a coluna Purchases nas queries, a ab
 Em 11/11/2026 (01–11/11): Gerenciador 391 compras / R$ 109,2 mil / ROAS 3,7 × planilha
 (UTM) 182 vendas / R$ 48,4 mil / ROAS 1,6.
 
+## Insights diários (rotina agendada)
+
+`build/insights_diarios.py` imprime a análise numérica do dia anterior (BRT): conta (gasto,
+CPM, CTR, funil, ROAS pixel e UTM, pedidos da loja) × média dos 3 dias anteriores; últimos
+7 dias; campanhas (ontem / 3 dias / 6 dias antes); **ralo** (ativos sem compra após
+1,5× o CAC alvo em 3 dias, ou ROAS UTM < 1 e pixel < 2 após R$ 300); **escalar** (ROAS
+pixel ≥ 4 e UTM ≥ 2 com < 8% da verba); **fadiga** (ROAS pixel 3d < 50% do anterior).
+Só números; uma tarefa agendada do Claude roda o script todo dia de manhã e escreve os
+insights (pontos fortes, fracos, o que otimizar, ralo, onde escalar). Atenção ao ler:
+campanhas com 1–3 dias estão em aprendizado e não devem ser cortadas só pela regra.
+
 ## Mapa de calor de custos (aba Meta Ads — só na dashboard interna)
 
 Tabelas por dia, campanha, conjunto e anúncio da aba Meta Ads: colunas **CPM, Custo/View,
