@@ -57,7 +57,12 @@ const salesActive = ()=> SALES.filter(s=>dateActive(s.d));
    vendasM = compras do produto principal atribuídas ao Meta Ads (base das conversões)
    fat     = faturamento (todos os produtos do escopo)
    Obs.: na aba Meta o conjunto de vendas já é filtrado a meta==1, então vendas==vendasM. */
-function newBucket(){return {sp:0,im:0,cl:0,pv:0,atc:0,ck:0,vendas:0,vendasM:0,fat:0};}
+function newBucket(){return {sp:0,im:0,cl:0,pv:0,atc:0,ck:0,pu:0,vendas:0,vendasM:0,fat:0};}
+/* Tx Compra / Tx Conversão na MESMA fonte do funil (pixel do Meta): compras do pixel ÷
+   checkouts (ou ÷ views) do pixel. Sem a coluna Purchases nas queries, usa as vendas
+   do Meta casadas pela UTM (comportamento antigo). */
+const HAS_PU = !!B.has_meta_purchases;
+const buyN = a => HAS_PU ? a.pu : a.vendasM;
 function addSales(a,r){ a.vendas+=r.main; a.vendasM+=r.meta?r.main:0; a.fat+=r.val; }   /* main pode ser >1 nas linhas do gerenciador (Purchases) */
 function derive(a){
   const g=a.sp*taxf();
@@ -67,25 +72,25 @@ function derive(a){
     cpatc:a.atc?g/a.atc:null, txatc:a.pv?a.atc/a.pv:null,       /* Custo/Carrinho · Tx Carrinho = Carrinhos / Page Views */
     cpic:a.ck?g/a.ck:null, vischk:a.pv?a.ck/a.pv:null,
     txck:a.atc?a.ck/a.atc:null,                                 /* Tx Checkout = Checkouts / Carrinhos */
-    convlp:a.pv?a.vendasM/a.pv:null,                            /* Vendas(Meta) / Page Views */
-    convchk:a.ck?a.vendasM/a.ck:null,                           /* Vendas(Meta) / Checkouts */
+    convlp:a.pv?buyN(a)/a.pv:null,                              /* Compras (pixel) / Page Views */
+    convchk:a.ck?buyN(a)/a.ck:null,                             /* Compras (pixel) / Checkouts */
     cac:a.vendas?g/a.vendas:null, roas:g?a.fat/g:null, ticket:a.vendas?a.fat/a.vendas:null};
 }
 function buildAgg(fS,fM,dim){
   const m={}; const get=k=>m[k]||(m[k]=newBucket());
-  fM.forEach(r=>{const a=get(r[dim]); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl; a.pv+=r.pv; a.ck+=r.ck; a.atc+=(r.atc||0);});
+  fM.forEach(r=>{const a=get(r[dim]); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl; a.pv+=r.pv; a.ck+=r.ck; a.atc+=(r.atc||0); a.pu+=(r.pu||0);});
   fS.forEach(r=>{const a=get(r[dim]); addSales(a,r);});
   return m;
 }
 function totals(fS,fM){
   const a=newBucket();
-  fM.forEach(r=>{a.sp+=r.sp;a.im+=r.im;a.cl+=r.cl;a.pv+=r.pv;a.ck+=r.ck; a.atc+=(r.atc||0);});
+  fM.forEach(r=>{a.sp+=r.sp;a.im+=r.im;a.cl+=r.cl;a.pv+=r.pv;a.ck+=r.ck; a.atc+=(r.atc||0); a.pu+=(r.pu||0);});
   fS.forEach(r=>addSales(a,r));
   return a;
 }
 function daily(fS,fM){
   const days={}; const g=d=>days[d]||(days[d]=Object.assign({d},newBucket()));
-  fM.forEach(r=>{if(!r.d)return; const a=g(r.d); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl; a.pv+=r.pv; a.ck+=r.ck; a.atc+=(r.atc||0);});
+  fM.forEach(r=>{if(!r.d)return; const a=g(r.d); a.sp+=r.sp; a.im+=r.im; a.cl+=r.cl; a.pv+=r.pv; a.ck+=r.ck; a.atc+=(r.atc||0); a.pu+=(r.pu||0);});
   fS.forEach(r=>{if(!r.d)return; addSales(g(r.d),r);});
   return Object.values(days).sort((a,b)=>a.d<b.d?-1:1);
 }
@@ -388,8 +393,8 @@ function convCharts(id1,id2,id3,dd){
      {label:'Tx Carrinho',fn:x=>x.pv?+(x.atc/x.pv).toFixed(4):null,color:cvar('--chart-convlp'),fmt:'pct',axis:'L'},
      {label:'Tx Checkout',fn:x=>x.atc?+(x.ck/x.atc).toFixed(4):null,color:cvar('--chart-vischk'),fmt:'pct',axis:'L'}]:[
      {label:'Tx Checkout',fn:x=>x.pv?+(x.ck/x.pv).toFixed(4):null,color:cvar('--chart-vischk'),fmt:'pct',axis:'L'}]), {L:{fmt:'pct'}});
-  multiLine(id3, dd, [{label:'Tx Compra',fn:x=>x.ck?+(x.vendasM/x.ck).toFixed(4):null,color:cvar('--chart-vischk'),fmt:'pct',axis:'L'},
-     {label:'Tx Conversão',fn:x=>x.pv?+(x.vendasM/x.pv).toFixed(4):null,color:cvar('--chart-convlp'),fmt:'pct',axis:'L'}], {L:{fmt:'pct'}});
+  multiLine(id3, dd, [{label:'Tx Compra',fn:x=>x.ck?+(buyN(x)/x.ck).toFixed(4):null,color:cvar('--chart-vischk'),fmt:'pct',axis:'L'},
+     {label:'Tx Conversão',fn:x=>x.pv?+(buyN(x)/x.pv).toFixed(4):null,color:cvar('--chart-convlp'),fmt:'pct',axis:'L'}], {L:{fmt:'pct'}});
 }
 
 /* ---------------- tabela de criativos (página do cliente) ----------------
@@ -828,7 +833,7 @@ function iaRenderWin(){
     STATE.iaWin=c.dataset.w; localStorage.setItem('ia_win',STATE.iaWin); iaRenderWin();
   }));
 }
-function iaSumBuckets(arr){ const a=newBucket(); arr.forEach(x=>{a.sp+=x.sp;a.im+=x.im;a.cl+=x.cl;a.pv+=x.pv;a.ck+=x.ck;a.atc+=x.atc;a.vendas+=x.vendas;a.vendasM+=x.vendasM;a.fat+=x.fat;}); return a; }
+function iaSumBuckets(arr){ const a=newBucket(); arr.forEach(x=>{a.sp+=x.sp;a.im+=x.im;a.cl+=x.cl;a.pv+=x.pv;a.ck+=x.ck;a.atc+=x.atc;a.pu+=x.pu;a.vendas+=x.vendas;a.vendasM+=x.vendasM;a.fat+=x.fat;}); return a; }
 function iaPctDelta(a,b){ return (a==null||b==null||!isFinite(a)||!isFinite(b)||b===0)?null:+(((a-b)/b)*100).toFixed(1); }
 function iaCmp(dR,dP,k){ return {recente:r2(dR[k]), anterior:r2(dP[k]), variacao_pct:iaPctDelta(dR[k],dP[k])}; }
 function iaBuildData(){

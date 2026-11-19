@@ -166,8 +166,13 @@ Gasto · Impressões · CPM · Cliques · CPC · CTR · Views LP · **Custo/View
 **Connect Rate** (Views/Cliques) · Carrinhos · **Custo/Carrinho** (Gasto/Carrinhos) ·
 **Tx Carrinho** (Carrinhos/Views) · Checkouts · **Custo/Checkout** (Gasto/Checkouts) ·
 **Tx Checkout** (Checkouts/Carrinhos) · Vendas · **Custo/Compra** = CAC (Gasto/Vendas) ·
-**Tx Compra** (Vendas/Checkouts) · **Tx Conversão** (Vendas/Views) · Faturamento ·
+**Tx Compra** (Compras/Checkouts) · **Tx Conversão** (Compras/Views) · Faturamento ·
 ROAS (Faturamento/Gasto) · Ticket (Faturamento/Vendas).
+**Tx Compra e Tx Conversão usam a mesma fonte do funil (pixel do Meta):** compras =
+coluna **Purchases** das queries ÷ checkouts (ou views) do pixel (`buyN()` no `app.js`,
+`HAS_PU` no `gerar_relatorios.py`). Antes era vendas casadas pela UTM ÷ checkouts do
+pixel, o que misturava fontes (13% × 28% em 19/11). Sem a coluna Purchases, volta para
+as vendas da UTM.
 A etapa Carrinho é lida da coluna `Adds to Cart` do Meta; se ela não existir, a engine
 esconde as colunas de carrinho e a Tx Checkout volta a ser Checkouts/Views.
 

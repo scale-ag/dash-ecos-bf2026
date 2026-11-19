@@ -36,6 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build  # noqa: E402
 
 BRT = timezone(timedelta(hours=-3))
+HAS_PU = False   # True quando as queries do Meta têm a coluna Purchases (definido no main)
 
 
 # --------------------------------------------------------------------------- #
@@ -65,11 +66,11 @@ def extract_xlsx(xlsx_path: str, meta_out: str, sales_out: str) -> None:
 # Métricas (mesma matemática do app.js: derive/agg)
 # --------------------------------------------------------------------------- #
 def new_bucket() -> dict:
-    return dict(sp=0.0, im=0.0, cl=0.0, pv=0.0, atc=0.0, ck=0.0, vendas=0, vendasM=0, fat=0.0)
+    return dict(sp=0.0, im=0.0, cl=0.0, pv=0.0, atc=0.0, ck=0.0, pu=0.0, vendas=0, vendasM=0, fat=0.0)
 
 
 def add_meta(a: dict, m: dict) -> None:
-    for k in ("sp", "im", "cl", "pv", "atc", "ck"):
+    for k in ("sp", "im", "cl", "pv", "atc", "ck", "pu"):
         a[k] += m.get(k, 0.0)
 
 
@@ -92,7 +93,9 @@ def derive(a: dict, tax: float) -> dict:
         # Etapa Carrinho (e-commerce): custo por carrinho, taxa de carrinho
         # (Carrinhos/Page Views) e taxa de checkout (Checkouts/Carrinhos).
         cpatc=sd(g, a["atc"]), txatc=sd(a["atc"], a["pv"]), txck=sd(a["ck"], a["atc"]),
-        convchk=sd(a["vendasM"], a["ck"]), convlp=sd(a["vendasM"], a["pv"]),
+        # Tx Compra / Tx Conversão na mesma fonte do funil (pixel); sem Purchases, UTM.
+        convchk=sd(a["pu"] if HAS_PU else a["vendasM"], a["ck"]),
+        convlp=sd(a["pu"] if HAS_PU else a["vendasM"], a["pv"]),
         cac=sd(g, a["vendas"]), roas=sd(a["fat"], g), ticket=sd(a["fat"], a["vendas"]),
     )
 
@@ -206,6 +209,8 @@ def main():
     data = build.process(meta_rows, sales_rows)
     meta, sales, B = data["meta"], data["sales"], data["build"]
     tax = B["tax_factor"]  # imposto Meta aplicado (mesmo default da UI: ON)
+    global HAS_PU
+    HAS_PU = bool(B.get("has_meta_purchases"))  # Tx Compra/Conversão pelo pixel
 
     ps = presets(B["today"], B["date_min"], B["date_max"])
     out = {
