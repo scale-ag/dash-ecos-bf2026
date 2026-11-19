@@ -132,6 +132,16 @@ Verificado em 02/11/2026:
   codificar e corta o `utm_medium` em `auto_h`. `FUZZY_UTM_MATCH = True` recupera essas
   vendas por prefixo (par campanha+anúncio único no Meta): catálogo 6 → 17 vendas.
   Correção na origem: parâmetros de URL curtos no Meta, sem `&`/acento nos nomes.
+- **UTMs cortadas em todas as campanhas (verificado em 19/11/2026):** quase todo pedido do
+  Meta chega com `landing_url` de 255 caracteres. O match agora: (1) ignora o sufixo
+  " — Cópia" (`utm_norm()`); (2) no casamento por prefixo, desempata pela campanha de
+  nome exato e depois pelo par campanha+anúncio **com gasto no dia da venda** (o mesmo
+  anúncio roda em várias campanhas; ex.: `..._cbo_11-11` × `..._cbo_11-11_novos-clientes`,
+  `utm_content` "…_Cupom11" cortado de "…_Cupom11.11_Nov"); (3) se o anúncio não dá para
+  saber mas a campanha é inequívoca, atribui à campanha com "(anúncio não identificado)"
+  (`campaign_only()`). Resultado em 19/11: vendas Meta 287 → 310. Seguem sem atribuição
+  (correto): link na bio/orgânico (`utm_source=ig`), pedidos sem UTM, e UTM literal
+  `{{campaign.name}}` (anúncio com parâmetros de URL quebrados no Meta).
 - **Mesmo anúncio em vários conjuntos (catálogo: 7d/180d/365d):** o conjunto da venda sai
   do `utm_medium` (exato ou prefixo único); se não der para saber (ex.: `auto_h`), a venda
   vai para "(conjunto não identificado)" em vez de inflar um conjunto. Verificado em

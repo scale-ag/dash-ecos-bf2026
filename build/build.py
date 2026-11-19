@@ -119,15 +119,51 @@ FUZZY_UTM_MATCH = bool(getattr(cfg, "FUZZY_UTM_MATCH", False))
 FUZZY_MIN_CAMP = 8   # mínimo de caracteres de utm_campaign para tentar
 
 
-def fuzzy_meta_pair(ad_map, sale_camp_raw: str, ad_raw: str):
-    """(camp_norm, ad_norm) único do Meta compatível com UTMs truncadas, ou None.
+_COPIA_RE = re.compile(r"\s*[-\u2014\u2013]\s*copia(\s*\d+)?$")
+
+
+def utm_norm(s: str) -> str:
+    """norm() + remove o sufixo de duplicação do Meta (" — Cópia", " - Cópia 2"), que
+    aparece em UTMs de anúncios duplicados com parâmetros de URL fixos."""
+    return _COPIA_RE.sub("", norm(s))
+
+
+def fuzzy_meta_pair(ad_map, sale_camp_raw: str, ad_raw: str, day=None, pair_spend=None):
+    """(camp_norm, ad_norm) do Meta compatível com UTMs truncadas, ou None.
     Campanha: a do Meta começa com a recebida. Anúncio: um começa com o outro
-    (cobre "CATÁ" -> "CATÁLOGO ALL PRODUCTS" e "..._Group_1" do catálogo); vazio = qualquer."""
-    nc, na = norm(sale_camp_raw), norm(ad_raw)
+    (cobre "CATÁ" -> "CATÁLOGO ALL PRODUCTS", "..._Group_1" do catálogo e
+    "..._Cupom11" -> "..._Cupom11.11_Nov"); vazio = qualquer.
+    Desempate quando sobra mais de um par: 1) campanha com nome EXATO;
+    2) par com gasto no dia da venda (o mesmo anúncio roda em várias campanhas);
+    3) o de maior gasto nesse dia. Sem nenhum pedaço do anúncio (utm_content vazio),
+    não desempata por gasto: devolve None e a venda vai só para a campanha."""
+    nc, na = utm_norm(sale_camp_raw), norm(ad_raw)
     if len(nc) < FUZZY_MIN_CAMP:
         return None
     cands = [k for k in ad_map if k[0].startswith(nc) and (not na or k[1].startswith(na) or na.startswith(k[1]))]
+    if len(cands) > 1:
+        exact = [k for k in cands if k[0] == nc]
+        if exact:
+            cands = exact
+    if len(cands) > 1 and na and day and pair_spend is not None:   # só com parte do nome do anúncio
+        live = [(pair_spend.get(k, {}).get(day, 0.0), k) for k in cands]
+        live = [x for x in live if x[0] > 0]
+        if live:
+            live.sort(reverse=True)
+            cands = [live[0][1]]
     return cands[0] if len(cands) == 1 else None
+
+
+def campaign_only(ad_map, sale_camp_raw: str):
+    """Campanha real do Meta (nome original) quando a UTM de campanha identifica UMA só
+    campanha, mesmo sem anúncio utilizável (utm_content vazio/cortado). Senão None."""
+    nc = utm_norm(sale_camp_raw)
+    if len(nc) < FUZZY_MIN_CAMP:
+        return None
+    hits = {k[0] for k in ad_map if k[0].startswith(nc)}
+    exact = {h for h in hits if h == nc}
+    hits = exact or hits
+    return next(iter(hits)) if len(hits) == 1 else None
 
 
 def load_customer_hist():
@@ -394,6 +430,8 @@ def process(meta_rows, sales_rows):
     # do Meta também alinha a venda à mesma linha do gasto nas tabelas.
     ad_map = {}
     ad_names = {}   # mesma chave -> Ad Name original (com acento/caixa) do Meta
+    camp_names = {}  # campanha normalizada -> nome original no Meta
+    pair_spend = {}  # (campanha, anúncio) normalizados -> {dia: gasto} (desempate do fuzzy)
     # mesma chave -> conjuntos reais do Meta em que esse anúncio roda. O mesmo
     # anúncio pode estar em VÁRIOS conjuntos (ex.: catálogo em 7d/180d/365d); aí o
     # conjunto da venda sai do utm_medium (nome do conjunto), não do 1º encontrado.
@@ -417,6 +455,10 @@ def process(meta_rows, sales_rows):
         if key not in ad_map:
             ad_map[key] = (camp, adset)
             ad_names[key] = ad
+        camp_names.setdefault(key[0], camp)
+        if mday:
+            ps = pair_spend.setdefault(key, {})
+            ps[mday] = ps.get(mday, 0.0) + to_float(cell(row, midx["spent"]))
         if adset not in ad_adsets.setdefault(key, []):
             ad_adsets[key].append(adset)
         link = cell(row, midx["link"])
@@ -529,15 +571,23 @@ def process(meta_rows, sales_rows):
         main = is_main_product(prod)
         # Match com o Meta = campanha + anúncio juntos (o mesmo Ad Name se repete
         # entre campanhas; casar só pelo anúncio atribui a venda à campanha errada).
-        meta_key = (norm(sale_camp), norm(ad))
+        meta_key = (utm_norm(sale_camp), norm(ad))
         meta_hit = ad_map.get(meta_key)
         hit_key = meta_key if meta_hit is not None else None
         if meta_hit is None and FUZZY_UTM_MATCH:
-            fk = fuzzy_meta_pair(ad_map, cell(row, sidx["utm_campaign"]), cell(row, sidx[AD_UTM_COLUMN]))
+            fk = fuzzy_meta_pair(ad_map, cell(row, sidx["utm_campaign"]), cell(row, sidx[AD_UTM_COLUMN]),
+                                 sday, pair_spend)
             if fk is not None:
                 meta_hit = ad_map[fk]
                 hit_key = fk
                 ad = ad_names[fk]     # nome real do anúncio no Meta (criativos/tabelas)
+            else:
+                # Anúncio inutilizável (utm_content vazio/cortado), mas a campanha é
+                # inequívoca: atribui à campanha, com conjunto/anúncio "não identificado".
+                cn = campaign_only(ad_map, cell(row, sidx["utm_campaign"]))
+                if cn is not None:
+                    meta_hit = (camp_names[cn], "(conjunto não identificado)")
+                    ad = "(anúncio não identificado)"
         if hit_key is not None and len(ad_adsets.get(hit_key, [])) > 1:
             # anúncio em vários conjuntos: escolhe pelo utm_medium (exato, senão
             # prefixo único — o "&" de "h&m" sem codificar corta em "auto_h").
